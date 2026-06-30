@@ -24,3 +24,10 @@
 - agent 集成
 - MCP server
 - 本地 Web UI
+
+## 阶段 5
+
+- Wiki Health 检查
+- Self-maintenance 修复计划
+- 冗余、过时、矛盾、断链、孤儿页面检测
+- 受控 PatchPlan 修复

@@ -4,6 +4,28 @@
 
 它用于创建和维护私密 Markdown Wiki，让人、Agent、Obsidian、静态站点生成器以及后续 MCP 客户端都能读取。Wiki 格式兼容 OKF，并额外定义更严格的 `pkwiki` 个人知识管理 profile。
 
+## 文档地图
+
+建议按这个顺序阅读：
+
+1. [产品定义](docs/PRODUCT.md)：说明 `pkwiki` 是什么、第一用户是谁、最终产物是什么、长期质量目标是什么。
+2. [术语表](CONTEXT.md)：统一产品语言，避免 CLI、Agent、Vault、Wiki、Source 等概念混用。
+3. [架构](docs/ARCHITECTURE.md)：说明内容层、确定性工具层和 Agent 层的关系。
+4. [Wiki Schema](docs/WIKI_SCHEMA.md)：说明 Wiki Page 的 frontmatter 和链接约定。
+5. [Agent Harness](docs/AGENT_HARNESS.md)：说明 Agent 如何通过受控工具维护 Vault。
+6. [Ingest Pipeline](docs/INGEST_PIPELINE.md)：说明从 Raw Source 到 Wiki 的编译式摄入流程。
+7. [路线图](docs/ROADMAP.md)：说明阶段性开发方向。
+
+功能级 spec 放在 `specs/` 目录下。每个独立开发过程或模块都有自己的 Feature Spec：
+
+```text
+specs/
+  0001-cli-mvp/
+    requirements.md
+    design.md
+    tasks.md
+```
+
 ## 范围
 
 这个仓库只放可复用代码和模板：
