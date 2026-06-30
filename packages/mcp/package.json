@@ -1,0 +1,16 @@
+{
+  "name": "@pkwiki/mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"TODO: mcp tests\"",
+    "lint": "echo \"TODO: mcp lint\""
+  },
+  "dependencies": {
+    "@pkwiki/core": "workspace:*"
+  }
+}
+

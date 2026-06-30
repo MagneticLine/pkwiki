@@ -1,0 +1,17 @@
+{
+  "name": "@pkwiki/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "pkwiki": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "echo \"TODO: cli tests\"",
+    "lint": "echo \"TODO: cli lint\""
+  },
+  "dependencies": {
+    "@pkwiki/core": "workspace:*"
+  }
+}
+
