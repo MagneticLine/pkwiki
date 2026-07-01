@@ -16,7 +16,7 @@
 - index 生成
 - ESLint 质量门禁
 
-状态：阶段 2 拆为多个 Feature Spec 推进。0002 已实现非 LLM ingest、source manifest、Extracted Source 模板和真实 ESLint 质量门禁；0003 用于补完 page manifest 与 index 生成。
+状态：阶段 2 已通过 0002 和 0003 实现。0002 已实现非 LLM ingest、source manifest、Extracted Source 模板和真实 ESLint 质量门禁；0003 已实现 page manifest、Search Index 和 `pkwiki index`。
 
 ## 阶段 3：受控修改协议
 

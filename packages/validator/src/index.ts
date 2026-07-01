@@ -6,10 +6,16 @@ import {
   PKWIKI_PROFILE,
   REQUIRED_DIRECTORIES,
   REQUIRED_FILES,
+  computeSha256,
   findVaultRoot,
   readVaultConfig,
   readSourceManifest,
 } from "@pkwiki/core";
+import {
+  listWikiPagePaths,
+  readPageManifest,
+  readSearchIndex,
+} from "@pkwiki/indexer";
 
 export const REQUIRED_FRONTMATTER_KEYS = [
   "okf_version",
@@ -82,6 +88,7 @@ export function validateVault(startPath = process.cwd()): ValidationResult {
   validateRequiredFiles(vaultRoot, errors);
   validateSourceManifest(vaultRoot, errors, warnings);
   validateWikiPages(vaultRoot, errors, warnings);
+  validatePageManifestAndIndex(vaultRoot, warnings);
 
   return {
     ok: errors.length === 0,
@@ -89,6 +96,127 @@ export function validateVault(startPath = process.cwd()): ValidationResult {
     errors,
     warnings,
   };
+}
+
+function validatePageManifestAndIndex(
+  vaultRoot: string,
+  warnings: ValidationIssue[],
+): void {
+  const wikiPages = listWikiPagePaths(vaultRoot);
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = readPageManifest(vaultRoot);
+  } catch (error) {
+    warnings.push({
+      severity: "warning",
+      code: "INVALID_PAGE_MANIFEST",
+      message: error instanceof Error ? error.message : String(error),
+      path: ".pkwiki/page_manifest.json",
+    });
+    manifest = {};
+  }
+
+  const manifestPaths = new Set<string>();
+  for (const [pageId, rawEntry] of Object.entries(manifest)) {
+    if (!isRecord(rawEntry)) {
+      warnings.push({
+        severity: "warning",
+        code: "INVALID_PAGE_MANIFEST_ENTRY",
+        message: `page manifest 记录必须是对象：${pageId}`,
+        path: ".pkwiki/page_manifest.json",
+      });
+      continue;
+    }
+
+    validatePageManifestFields(pageId, rawEntry, warnings);
+    if (typeof rawEntry.path !== "string" || rawEntry.path === "") {
+      continue;
+    }
+
+    manifestPaths.add(rawEntry.path);
+    const absolutePath = join(vaultRoot, rawEntry.path);
+    if (!existsSync(absolutePath)) {
+      warnings.push({
+        severity: "warning",
+        code: "PAGE_MANIFEST_STALE_PAGE",
+        message: `page manifest 指向不存在的页面：${rawEntry.path}`,
+        path: ".pkwiki/page_manifest.json",
+        target: rawEntry.path,
+      });
+      continue;
+    }
+
+    if (
+      typeof rawEntry.checksum === "string" &&
+      rawEntry.checksum !== computeSha256(absolutePath)
+    ) {
+      warnings.push({
+        severity: "warning",
+        code: "PAGE_MANIFEST_STALE_CHECKSUM",
+        message: `page manifest checksum 已过期：${rawEntry.path}`,
+        path: ".pkwiki/page_manifest.json",
+        target: rawEntry.path,
+      });
+    }
+  }
+
+  for (const pagePath of wikiPages) {
+    if (!manifestPaths.has(pagePath)) {
+      warnings.push({
+        severity: "warning",
+        code: "PAGE_MANIFEST_MISSING_PAGE",
+        message: `page manifest 缺少已存在页面：${pagePath}`,
+        path: ".pkwiki/page_manifest.json",
+        target: pagePath,
+      });
+    }
+  }
+
+  try {
+    const index = readSearchIndex(vaultRoot);
+    if (wikiPages.length > 0 && !index) {
+      warnings.push({
+        severity: "warning",
+        code: "SEARCH_INDEX_MISSING",
+        message: "Wiki Page 非空但 outputs/index.json 不存在",
+        path: "outputs/index.json",
+      });
+    }
+  } catch (error) {
+    warnings.push({
+      severity: "warning",
+      code: "INVALID_SEARCH_INDEX",
+      message: error instanceof Error ? error.message : String(error),
+      path: "outputs/index.json",
+    });
+  }
+}
+
+function validatePageManifestFields(
+  pageId: string,
+  rawEntry: Record<string, unknown>,
+  warnings: ValidationIssue[],
+): void {
+  const requiredFields = ["id", "path", "title", "type", "domain", "checksum"];
+  for (const field of requiredFields) {
+    if (isMissing(rawEntry[field])) {
+      warnings.push({
+        severity: "warning",
+        code: "MISSING_PAGE_MANIFEST_FIELD",
+        message: `page manifest 记录缺少字段 ${field}`,
+        path: ".pkwiki/page_manifest.json",
+      });
+    }
+  }
+
+  if (rawEntry.id !== pageId) {
+    warnings.push({
+      severity: "warning",
+      code: "PAGE_ID_MISMATCH",
+      message: `page manifest key 与 id 不一致：${pageId}`,
+      path: ".pkwiki/page_manifest.json",
+    });
+  }
 }
 
 function validateSourceManifest(

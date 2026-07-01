@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,4 +68,42 @@ test("布尔 flag 不消费后续位置参数", () => {
   assert.equal(result.ok, true);
   assert.equal(result.type, "chat");
   assert.equal(result.domain, "personal");
+});
+
+test("index 支持 JSON 输出", () => {
+  const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-index-"));
+  const vault = join(parent, "vault");
+  run(["init", vault, "--json"]);
+  const pageDirectory = join(vault, "wiki/career");
+  mkdirSync(pageDirectory, { recursive: true });
+  writeFileSync(
+    join(pageDirectory, "internship.md"),
+    [
+      "---",
+      'okf_version: "0.1"',
+      "profile: pkwiki/0.1",
+      "id: career/internship",
+      "type: Project",
+      "title: Internship",
+      "description: Internship page.",
+      "domain: career",
+      "status: active",
+      "created: 2026-07-01",
+      "updated: 2026-07-01",
+      "confidence: medium",
+      "privacy: private",
+      "sources: [src:internship]",
+      "tags: [career]",
+      "---",
+      "",
+      "# Internship",
+    ].join("\n"),
+  );
+
+  const result = JSON.parse(run(["index", "--json"], vault));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.pageCount, 1);
+  assert.equal(result.pageManifestPath, ".pkwiki/page_manifest.json");
+  assert.equal(result.indexPath, "outputs/index.json");
 });

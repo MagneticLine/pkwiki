@@ -68,6 +68,7 @@ pkwiki init <vault>
 pkwiki status
 pkwiki validate
 pkwiki ingest <file> --type <type> --domain <domain>
+pkwiki index
 ```
 
 这些命令支持 Agent 使用的 `--json` 输出：
@@ -76,9 +77,10 @@ pkwiki ingest <file> --type <type> --domain <domain>
 pkwiki status --json
 pkwiki validate --json
 pkwiki ingest <file> --type <type> --domain <domain> --json
+pkwiki index --json
 ```
 
-后续规划命令包括 `index`、`apply-patch`、`diff`、`commit`、`mcp` 和 `serve`。
+后续规划命令包括 `apply-patch`、`diff`、`commit`、`mcp` 和 `serve`。
 
 ## 开发命令
 

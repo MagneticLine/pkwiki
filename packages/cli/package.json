@@ -13,6 +13,7 @@
   "dependencies": {
     "@pkwiki/core": "workspace:*",
     "@pkwiki/git": "workspace:*",
+    "@pkwiki/indexer": "workspace:*",
     "@pkwiki/validator": "workspace:*"
   }
 }

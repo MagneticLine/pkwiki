@@ -41,6 +41,9 @@ importers:
       '@pkwiki/git':
         specifier: workspace:*
         version: link:../git
+      '@pkwiki/indexer':
+        specifier: workspace:*
+        version: link:../indexer
       '@pkwiki/validator':
         specifier: workspace:*
         version: link:../validator
@@ -58,6 +61,9 @@ importers:
       '@pkwiki/core':
         specifier: workspace:*
         version: link:../core
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
 
   packages/mcp:
     dependencies:
@@ -70,6 +76,9 @@ importers:
       '@pkwiki/core':
         specifier: workspace:*
         version: link:../core
+      '@pkwiki/indexer':
+        specifier: workspace:*
+        version: link:../indexer
       yaml:
         specifier: ^2.6.1
         version: 2.9.0

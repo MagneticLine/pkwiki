@@ -19,6 +19,7 @@ import {
   loadVault,
 } from "@pkwiki/core";
 import { getGitStatus } from "@pkwiki/git";
+import { generateIndex } from "@pkwiki/indexer";
 import { validateVault } from "@pkwiki/validator";
 
 type ParsedArgs = {
@@ -87,6 +88,12 @@ function main(argv: string[]): void {
     if (args.command === "ingest") {
       const result = runIngest(args);
       writeOutput(args.json, result, formatIngestResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "index") {
+      const result = generateIndex(args.path ?? process.cwd());
+      writeOutput(args.json, result, formatIndexResult(result));
       process.exit(0);
     }
 
@@ -301,6 +308,17 @@ function formatIngestResult(result: ReturnType<typeof ingestSource>): string {
   ].join("\n");
 }
 
+function formatIndexResult(result: ReturnType<typeof generateIndex>): string {
+  return [
+    `Vault: ${result.vaultRoot}`,
+    `Pages indexed: ${result.pageCount}`,
+    `Links indexed: ${result.linkCount}`,
+    `Source references: ${result.sourceReferenceCount}`,
+    `Page manifest: ${result.pageManifestPath}`,
+    `Search index: ${result.indexPath}`,
+  ].join("\n");
+}
+
 function formatValidation(result: ReturnType<typeof validateVault>): string {
   const lines = [
     `Vault: ${result.vaultRoot ?? "(not found)"}`,
@@ -328,6 +346,7 @@ function printHelp(): void {
       "  pkwiki status [path] [--json]",
       "  pkwiki validate [path] [--json]",
       "  pkwiki ingest <file> --type <type> --domain <domain> [--title <title>] [--json]",
+      "  pkwiki index [path] [--json]",
     ].join("\n"),
   );
 }
