@@ -73,6 +73,14 @@ _Avoid_: TODO lint, 手工检查
 约束并增强 Agent 如何读取、查找、计划、修改和校验 Vault 的工具层。Harness 的目标是降低自由式 vibe coding 带来的不确定性，并针对 Wiki 维护场景补足模型在定位、完整性、引用、级联修改和质量检查上的能力短板。
 _Avoid_: Agent Runtime, Pi, Claude Code
 
+**PatchPlan**:
+Agent 生成、`pkwiki` 应用的结构化修改计划。PatchPlan 用 JSON 表达要修改哪些 Wiki Page、执行哪些有限操作、基于哪些 source 和可选 checksum。PatchPlan 是受控修改协议，不是自然语言建议，也不是 Git diff。
+_Avoid_: prompt, 随意编辑, Git diff, commit
+
+**apply-patch**:
+读取 PatchPlan 并用确定性逻辑应用修改的 CLI Command。`pkwiki apply-patch` 负责路径安全、checksum、operation 语义和 apply 后校验，但不负责自动 commit 或 push。
+_Avoid_: Agent 自己写文件, git apply, 自动提交
+
 **Source-to-Wiki Merge**:
 将一份 Raw Source 或 Extracted Source 中的信息完整、正确、可追溯地合并进 Wiki 的过程。它是 `pkwiki` 的长期质量目标，不等同于简单摘要或文件复制。
 _Avoid_: ingest, summarize, import

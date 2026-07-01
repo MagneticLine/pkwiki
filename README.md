@@ -34,6 +34,10 @@ specs/
     requirements.md
     design.md
     tasks.md
+  0004-patch-plan-apply/
+    requirements.md
+    design.md
+    tasks.md
 ```
 
 ## 范围

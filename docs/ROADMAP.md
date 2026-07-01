@@ -24,7 +24,7 @@
 - `pkwiki apply-patch`
 - lint 检查
 
-状态：尚未开始。预计在阶段 2 的 page manifest 与 index 完成后进入，Feature Spec 编号预计从 0004 开始。
+状态：进入 0004 spec 阶段，先实现 PatchPlan v0 与 `pkwiki apply-patch` MVP。
 
 ## 阶段 4
 
