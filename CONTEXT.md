@@ -48,6 +48,18 @@ _Avoid_: Wiki Page, Extracted Source, 知识页
 从 Raw Source 归一化、提取或总结出的中间产物，存放在 `extracted/` 下。Extracted Source 是 Agent 可写的工作层，用于连接 Raw Source 和 Wiki。
 _Avoid_: Raw Source, Wiki Page, 最终知识
 
+**Source ID**:
+Raw Source 在 Vault 内的稳定标识，格式为 `src:YYYY-MM-DD-slug`。Source ID 用于 manifest、Extracted Source、Wiki Page 引用和后续 Source-to-Wiki Merge 追溯。
+_Avoid_: 文件名, 路径, page id
+
+**Source Manifest**:
+`.pkwiki/source_manifest.json` 中的机器可读 source 登记表，记录 Source ID、Raw Source 路径、Extracted Source 路径、类型、领域、checksum 和状态。
+_Avoid_: index, Wiki, 清单
+
+**Quality Gate**:
+开发过程中必须通过的自动检查。0002 中 Quality Gate 指真实 ESLint、构建和测试，而不是占位脚本。
+_Avoid_: TODO lint, 手工检查
+
 **Harness**:
 约束并增强 Agent 如何读取、查找、计划、修改和校验 Vault 的工具层。Harness 的目标是降低自由式 vibe coding 带来的不确定性，并针对 Wiki 维护场景补足模型在定位、完整性、引用、级联修改和质量检查上的能力短板。
 _Avoid_: Agent Runtime, Pi, Claude Code

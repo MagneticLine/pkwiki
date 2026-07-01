@@ -24,6 +24,10 @@ specs/
     requirements.md
     design.md
     tasks.md
+  0002-source-ingest-quality-gate/
+    requirements.md
+    design.md
+    tasks.md
 ```
 
 ## 范围
