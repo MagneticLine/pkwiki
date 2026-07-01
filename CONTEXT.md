@@ -14,7 +14,8 @@ _Avoid_: pkwiki 指令, CLI 指令
 
 **Feature Spec**:
 `pkwiki` 仓库中针对一个独立开发过程或模块的需求、设计和任务计划。Feature Spec 放在 `pkwiki/specs/` 下，随产品代码一起版本化。
-_Avoid_: 根目录开发计划, 临时 TODO, 普通 docs
+Feature Spec 编号表示开发批次，不等同于路线图阶段编号；一个路线图阶段可以拆成多个 Feature Spec。
+_Avoid_: 根目录开发计划, 临时 TODO, 普通 docs, 路线图阶段编号
 
 **Agent**:
 `pkwiki` 的第一用户。Agent 读取素材、调用 CLI Command、生成或应用受控变更，用于维护个人 Wiki。
@@ -55,6 +56,14 @@ _Avoid_: 文件名, 路径, page id
 **Source Manifest**:
 `.pkwiki/source_manifest.json` 中的机器可读 source 登记表，记录 Source ID、Raw Source 路径、Extracted Source 路径、类型、领域、checksum 和状态。
 _Avoid_: index, Wiki, 清单
+
+**Page Manifest**:
+`.pkwiki/page_manifest.json` 中的机器可读 Wiki Page 登记表，记录页面 id、路径、标题、类型、领域、来源引用、标签、checksum 和索引时间。Page Manifest 是可再生成的索引产物，不是 Wiki Page 本身。
+_Avoid_: Source Manifest, Search Index, Wiki Page
+
+**Search Index**:
+`outputs/index.json` 中面向 Agent 查询的 Wiki 索引，聚合页面摘要、链接、标题层级、按类型/领域/source 的反向映射和 backlinks。Search Index 用于定位候选页面，不承载长期知识事实。
+_Avoid_: Page Manifest, Wiki, 全文数据库
 
 **Quality Gate**:
 开发过程中必须通过的自动检查。0002 中 Quality Gate 指真实 ESLint、构建和测试，而不是占位脚本。

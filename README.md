@@ -18,6 +18,8 @@
 
 功能级 spec 放在 `specs/` 目录下。每个独立开发过程或模块都有自己的 Feature Spec：
 
+Feature Spec 编号表示开发批次，不等同于路线图阶段编号。一个路线图阶段可以拆成多个 Feature Spec。
+
 ```text
 specs/
   0001-cli-mvp/
@@ -25,6 +27,10 @@ specs/
     design.md
     tasks.md
   0002-source-ingest-quality-gate/
+    requirements.md
+    design.md
+    tasks.md
+  0003-page-manifest-index/
     requirements.md
     design.md
     tasks.md
