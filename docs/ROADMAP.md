@@ -6,6 +6,8 @@
 - `pkwiki status`
 - `pkwiki validate`
 
+状态：已实现 MVP，并通过临时 Vault 与 `my-pkm-vault` dogfood。
+
 ## 阶段 2
 
 - `pkwiki ingest`

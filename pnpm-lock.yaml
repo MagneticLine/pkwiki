@@ -1,0 +1,99 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.0.1
+        version: 26.0.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  packages/agent:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/cli:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+      '@pkwiki/git':
+        specifier: workspace:*
+        version: link:../git
+      '@pkwiki/validator':
+        specifier: workspace:*
+        version: link:../validator
+
+  packages/core: {}
+
+  packages/git:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/indexer:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/mcp:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/validator:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+      yaml:
+        specifier: ^2.6.1
+        version: 2.9.0
+
+  packages/web:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+
+packages:
+
+  '@types/node@26.0.1':
+    resolution: {integrity: sha1-SmDix6bWi9Jh4mX4mDv+FgEmPOM=, tarball: http://r.npm.sankuai.com/@types/node/download/@types/node-26.0.1.tgz}
+
+  typescript@5.9.3:
+    resolution: {integrity: sha1-W09Z4VMQqxeiFvXWz1PuR27eZw8=, tarball: http://r.npm.sankuai.com/typescript/download/typescript-5.9.3.tgz}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
+  undici-types@8.3.0:
+    resolution: {integrity: sha1-ROn8nzJEZIzeo15Pm7LWgelBCAk=, tarball: http://r.npm.sankuai.com/undici-types/download/undici-types-8.3.0.tgz}
+
+  yaml@2.9.0:
+    resolution: {integrity: sha1-eCdK/ZNZih391hMN9qVm3vy/mqQ=, tarball: http://r.npm.sankuai.com/yaml/download/yaml-2.9.0.tgz}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
+snapshots:
+
+  '@types/node@26.0.1':
+    dependencies:
+      undici-types: 8.3.0
+
+  typescript@5.9.3: {}
+
+  undici-types@8.3.0: {}
+
+  yaml@2.9.0: {}

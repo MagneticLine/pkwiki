@@ -51,13 +51,27 @@ specs/
 - `packages/mcp`：MCP server 集成
 - `packages/web`：本地 Web UI
 
-## 初始命令规划
+## 当前已实现命令
 
 ```bash
 pkwiki init <vault>
 pkwiki status
 pkwiki validate
-pkwiki index
-pkwiki diff
-pkwiki commit -m "message"
+```
+
+这些命令支持 Agent 使用的 `--json` 输出：
+
+```bash
+pkwiki status --json
+pkwiki validate --json
+```
+
+后续规划命令包括 `ingest`、`index`、`apply-patch`、`diff`、`commit`、`mcp` 和 `serve`。
+
+## 开发命令
+
+```bash
+pnpm install
+pnpm build
+pnpm test
 ```

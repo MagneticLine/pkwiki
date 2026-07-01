@@ -1,6 +1,282 @@
 #!/usr/bin/env node
 
-import { OKF_VERSION, PKWIKI_PROFILE } from "@pkwiki/core";
+import { execFileSync } from "node:child_process";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+} from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  OKF_VERSION,
+  PKWIKI_PROFILE,
+  countFiles,
+  fileExists,
+  loadVault,
+} from "@pkwiki/core";
+import { getGitStatus } from "@pkwiki/git";
+import { validateVault } from "@pkwiki/validator";
 
-console.log(`pkwiki ${PKWIKI_PROFILE} (OKF ${OKF_VERSION})`);
+type ParsedArgs = {
+  command?: string;
+  path?: string;
+  json: boolean;
+  force: boolean;
+  git: boolean;
+};
 
+type StatusResult = {
+  ok: boolean;
+  vaultRoot: string;
+  profile: string;
+  okfVersion: string;
+  counts: {
+    raw: number;
+    extracted: number;
+    wiki: number;
+  };
+  manifests: {
+    source: boolean;
+    chunk: boolean;
+    page: boolean;
+  };
+  git: {
+    initialized: boolean;
+    clean: boolean;
+    changedFiles: number;
+  };
+};
+
+main(process.argv.slice(2));
+
+function main(argv: string[]): void {
+  const args = parseArgs(argv);
+
+  try {
+    if (!args.command || args.command === "help" || args.command === "--help") {
+      printHelp();
+      process.exit(0);
+    }
+
+    if (args.command === "init") {
+      const result = runInit(args);
+      writeOutput(args.json, result, formatInitResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "status") {
+      const result = buildStatus(args.path);
+      writeOutput(args.json, result, formatStatus(result));
+      process.exit(0);
+    }
+
+    if (args.command === "validate") {
+      const result = validateVault(args.path ?? process.cwd());
+      writeOutput(args.json, result, formatValidation(result));
+      if (!result.vaultRoot) {
+        process.exit(2);
+      }
+      process.exit(result.errors.length > 0 ? 1 : 0);
+    }
+
+    throw new CliError(`未知命令：${args.command}`, 2);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (args.json) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: false,
+            error: message,
+          },
+          null,
+          2,
+        ),
+      );
+    } else {
+      console.error(`错误：${message}`);
+    }
+    process.exit(error instanceof CliError ? error.exitCode : 2);
+  }
+}
+
+function parseArgs(argv: string[]): ParsedArgs {
+  const positional: string[] = [];
+  const flags = new Set<string>();
+
+  for (const arg of argv) {
+    if (arg.startsWith("--")) {
+      flags.add(arg);
+    } else {
+      positional.push(arg);
+    }
+  }
+
+  return {
+    command: positional[0],
+    path: positional[1],
+    json: flags.has("--json"),
+    force: flags.has("--force"),
+    git: flags.has("--git"),
+  };
+}
+
+function runInit(args: ParsedArgs): {
+  ok: true;
+  path: string;
+  gitInitialized: boolean;
+} {
+  if (!args.path) {
+    throw new CliError("pkwiki init 需要目标路径", 2);
+  }
+
+  const targetPath = resolve(args.path);
+  if (existsSync(targetPath)) {
+    if (!statSync(targetPath).isDirectory()) {
+      throw new CliError(`目标路径不是目录：${targetPath}`, 2);
+    }
+    const entries = readdirSync(targetPath).filter((entry) => entry !== ".DS_Store");
+    if (entries.length > 0 && !args.force) {
+      throw new CliError("目标目录非空。需要覆盖时请显式传入 --force", 1);
+    }
+  } else {
+    mkdirSync(targetPath, { recursive: true });
+  }
+
+  const templateRoot = getTemplateRoot();
+  cpSync(templateRoot, targetPath, {
+    recursive: true,
+    force: args.force,
+    errorOnExist: !args.force,
+  });
+
+  if (args.git) {
+    execFileSync("git", ["init"], {
+      cwd: targetPath,
+      stdio: "ignore",
+    });
+  }
+
+  return {
+    ok: true,
+    path: targetPath,
+    gitInitialized: args.git,
+  };
+}
+
+function buildStatus(startPath?: string): StatusResult {
+  const vault = loadVault(startPath ?? process.cwd());
+  const git = getGitStatus(vault.root);
+
+  return {
+    ok: true,
+    vaultRoot: vault.root,
+    profile: vault.config.profile,
+    okfVersion: vault.config.okfVersion,
+    counts: {
+      raw: countFiles(join(vault.root, vault.config.rawRoot)),
+      extracted: countFiles(join(vault.root, vault.config.extractedRoot)),
+      wiki: countFiles(join(vault.root, vault.config.wikiRoot)),
+    },
+    manifests: {
+      source: fileExists(vault.root, ".pkwiki/source_manifest.json"),
+      chunk: fileExists(vault.root, ".pkwiki/chunk_manifest.json"),
+      page: fileExists(vault.root, ".pkwiki/page_manifest.json"),
+    },
+    git: {
+      initialized: git.initialized,
+      clean: git.clean,
+      changedFiles: git.changedFiles,
+    },
+  };
+}
+
+function getTemplateRoot(): string {
+  const currentFile = fileURLToPath(import.meta.url);
+  const packageRoot = dirname(dirname(currentFile));
+  const repoRoot = resolve(packageRoot, "../..");
+  const templateRoot = join(repoRoot, "templates/default-vault");
+  if (!existsSync(templateRoot)) {
+    throw new CliError(`未找到默认 Vault 模板：${templateRoot}`, 2);
+  }
+  return templateRoot;
+}
+
+function writeOutput(json: boolean, value: unknown, text: string): void {
+  if (json) {
+    console.log(JSON.stringify(value, null, 2));
+  } else {
+    console.log(text);
+  }
+}
+
+function formatInitResult(result: {
+  path: string;
+  gitInitialized: boolean;
+}): string {
+  return [
+    `Vault: ${result.path}`,
+    "Status: created",
+    `Git initialized: ${result.gitInitialized ? "yes" : "no"}`,
+  ].join("\n");
+}
+
+function formatStatus(result: StatusResult): string {
+  return [
+    `Vault: ${result.vaultRoot}`,
+    `Profile: ${result.profile}`,
+    `OKF: ${result.okfVersion}`,
+    "Files:",
+    `  raw: ${result.counts.raw}`,
+    `  extracted: ${result.counts.extracted}`,
+    `  wiki: ${result.counts.wiki}`,
+    "Manifests:",
+    `  source: ${result.manifests.source ? "yes" : "no"}`,
+    `  chunk: ${result.manifests.chunk ? "yes" : "no"}`,
+    `  page: ${result.manifests.page ? "yes" : "no"}`,
+    "Git:",
+    `  initialized: ${result.git.initialized ? "yes" : "no"}`,
+    `  clean: ${result.git.clean ? "yes" : "no"}`,
+    `  changed files: ${result.git.changedFiles}`,
+  ].join("\n");
+}
+
+function formatValidation(result: ReturnType<typeof validateVault>): string {
+  const lines = [
+    `Vault: ${result.vaultRoot ?? "(not found)"}`,
+    "Validation:",
+    `  errors: ${result.errors.length}`,
+    `  warnings: ${result.warnings.length}`,
+  ];
+
+  for (const issue of [...result.errors, ...result.warnings]) {
+    const location = issue.path ? ` ${issue.path}` : "";
+    const target = issue.target ? ` -> ${issue.target}` : "";
+    lines.push(`  [${issue.severity}] ${issue.code}${location}${target}: ${issue.message}`);
+  }
+
+  return lines.join("\n");
+}
+
+function printHelp(): void {
+  console.log(
+    [
+      `pkwiki ${PKWIKI_PROFILE} (OKF ${OKF_VERSION})`,
+      "",
+      "Usage:",
+      "  pkwiki init <path> [--force] [--git] [--json]",
+      "  pkwiki status [path] [--json]",
+      "  pkwiki validate [path] [--json]",
+    ].join("\n"),
+  );
+}
+
+class CliError extends Error {
+  constructor(message: string, readonly exitCode: number) {
+    super(message);
+    this.name = "CliError";
+  }
+}
