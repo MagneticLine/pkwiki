@@ -19,7 +19,9 @@
 pnpm install
 pnpm build
 pnpm test
+pnpm lint
 node packages/cli/dist/index.js init <vault>
 node packages/cli/dist/index.js status <vault> --json
 node packages/cli/dist/index.js validate <vault> --json
+node packages/cli/dist/index.js ingest <file> --type <type> --domain <domain> --json
 ```

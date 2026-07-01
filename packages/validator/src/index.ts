@@ -8,6 +8,7 @@ import {
   REQUIRED_FILES,
   findVaultRoot,
   readVaultConfig,
+  readSourceManifest,
 } from "@pkwiki/core";
 
 export const REQUIRED_FRONTMATTER_KEYS = [
@@ -79,6 +80,7 @@ export function validateVault(startPath = process.cwd()): ValidationResult {
 
   validateRequiredDirectories(vaultRoot, errors);
   validateRequiredFiles(vaultRoot, errors);
+  validateSourceManifest(vaultRoot, errors, warnings);
   validateWikiPages(vaultRoot, errors, warnings);
 
   return {
@@ -87,6 +89,99 @@ export function validateVault(startPath = process.cwd()): ValidationResult {
     errors,
     warnings,
   };
+}
+
+function validateSourceManifest(
+  vaultRoot: string,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[],
+): void {
+  let manifest: Record<string, unknown>;
+  try {
+    manifest = readSourceManifest(vaultRoot);
+  } catch (error) {
+    errors.push({
+      severity: "error",
+      code: "INVALID_SOURCE_MANIFEST",
+      message: error instanceof Error ? error.message : String(error),
+      path: ".pkwiki/source_manifest.json",
+    });
+    return;
+  }
+
+  for (const [sourceId, rawEntry] of Object.entries(manifest)) {
+    if (!isRecord(rawEntry)) {
+      errors.push({
+        severity: "error",
+        code: "INVALID_SOURCE_MANIFEST_ENTRY",
+        message: `source manifest 记录必须是对象：${sourceId}`,
+        path: ".pkwiki/source_manifest.json",
+      });
+      continue;
+    }
+
+    const requiredFields = [
+      "sourceId",
+      "rawPath",
+      "type",
+      "domain",
+      "checksum",
+      "status",
+    ];
+    for (const field of requiredFields) {
+      if (isMissing(rawEntry[field])) {
+        errors.push({
+          severity: "error",
+          code: "MISSING_SOURCE_MANIFEST_FIELD",
+          message: `source manifest 记录缺少字段 ${field}`,
+          path: ".pkwiki/source_manifest.json",
+        });
+      }
+    }
+
+    if (rawEntry.sourceId !== sourceId) {
+      errors.push({
+        severity: "error",
+        code: "SOURCE_ID_MISMATCH",
+        message: `source manifest key 与 sourceId 不一致：${sourceId}`,
+        path: ".pkwiki/source_manifest.json",
+      });
+    }
+
+    addMissingSourceFileWarning(
+      vaultRoot,
+      rawEntry.rawPath,
+      "RAW_SOURCE_MISSING",
+      warnings,
+    );
+    addMissingSourceFileWarning(
+      vaultRoot,
+      rawEntry.extractedPath,
+      "EXTRACTED_SOURCE_MISSING",
+      warnings,
+    );
+  }
+}
+
+function addMissingSourceFileWarning(
+  vaultRoot: string,
+  pathValue: unknown,
+  code: string,
+  warnings: ValidationIssue[],
+): void {
+  if (typeof pathValue !== "string" || pathValue === "") {
+    return;
+  }
+
+  if (!existsSync(join(vaultRoot, pathValue))) {
+    warnings.push({
+      severity: "warning",
+      code,
+      message: `source manifest 指向的文件不存在：${pathValue}`,
+      path: ".pkwiki/source_manifest.json",
+      target: pathValue,
+    });
+  }
 }
 
 function validateRequiredDirectories(

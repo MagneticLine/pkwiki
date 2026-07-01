@@ -73,3 +73,59 @@ test("断开的 Markdown link 报 warning", () => {
   assert.ok(result.warnings.some((issue) => issue.code === "BROKEN_MARKDOWN_LINK"));
 });
 
+test("source manifest 指向缺失文件时报 warning", () => {
+  const root = copyTemplate();
+  writeFileSync(
+    join(root, ".pkwiki/source_manifest.json"),
+    JSON.stringify(
+      {
+        "src:2026-07-01-missing": {
+          sourceId: "src:2026-07-01-missing",
+          rawPath: "raw/inbox/missing.md",
+          extractedPath: "extracted/sources/src-2026-07-01-missing.md",
+          type: "document",
+          domain: "learning",
+          checksum: "sha256:test",
+          status: "registered",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const result = validateVault(root);
+  assert.equal(result.errors.length, 0);
+  assert.ok(result.warnings.some((issue) => issue.code === "RAW_SOURCE_MISSING"));
+  assert.ok(result.warnings.some((issue) => issue.code === "EXTRACTED_SOURCE_MISSING"));
+});
+
+test("source manifest 缺少必需字段时报 error", () => {
+  const root = copyTemplate();
+  writeFileSync(
+    join(root, ".pkwiki/source_manifest.json"),
+    JSON.stringify(
+      {
+        "src:2026-07-01-invalid": {
+          sourceId: "src:2026-07-01-invalid",
+          rawPath: "raw/inbox/invalid.md",
+          type: "document",
+          checksum: "sha256:test",
+          status: "registered",
+        },
+      },
+      null,
+      2,
+    ),
+  );
+
+  const result = validateVault(root);
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(
+      (issue) =>
+        issue.code === "MISSING_SOURCE_MANIFEST_FIELD" &&
+        issue.message.includes("domain"),
+    ),
+  );
+});

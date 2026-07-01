@@ -61,6 +61,7 @@ specs/
 pkwiki init <vault>
 pkwiki status
 pkwiki validate
+pkwiki ingest <file> --type <type> --domain <domain>
 ```
 
 这些命令支持 Agent 使用的 `--json` 输出：
@@ -68,9 +69,10 @@ pkwiki validate
 ```bash
 pkwiki status --json
 pkwiki validate --json
+pkwiki ingest <file> --type <type> --domain <domain> --json
 ```
 
-后续规划命令包括 `ingest`、`index`、`apply-patch`、`diff`、`commit`、`mcp` 和 `serve`。
+后续规划命令包括 `index`、`apply-patch`、`diff`、`commit`、`mcp` 和 `serve`。
 
 ## 开发命令
 
@@ -78,4 +80,5 @@ pkwiki validate --json
 pnpm install
 pnpm build
 pnpm test
+pnpm lint
 ```

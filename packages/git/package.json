@@ -7,10 +7,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "echo \"TODO: git tests\"",
-    "lint": "echo \"TODO: git lint\""
+    "lint": "eslint ."
   },
   "dependencies": {
     "@pkwiki/core": "workspace:*"
   }
 }
-

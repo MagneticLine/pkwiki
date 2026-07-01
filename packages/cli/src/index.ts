@@ -15,6 +15,7 @@ import {
   PKWIKI_PROFILE,
   countFiles,
   fileExists,
+  ingestSource,
   loadVault,
 } from "@pkwiki/core";
 import { getGitStatus } from "@pkwiki/git";
@@ -26,6 +27,9 @@ type ParsedArgs = {
   json: boolean;
   force: boolean;
   git: boolean;
+  type?: string;
+  domain?: string;
+  title?: string;
 };
 
 type StatusResult = {
@@ -49,8 +53,6 @@ type StatusResult = {
     changedFiles: number;
   };
 };
-
-main(process.argv.slice(2));
 
 function main(argv: string[]): void {
   const args = parseArgs(argv);
@@ -82,6 +84,12 @@ function main(argv: string[]): void {
       process.exit(result.errors.length > 0 ? 1 : 0);
     }
 
+    if (args.command === "ingest") {
+      const result = runIngest(args);
+      writeOutput(args.json, result, formatIngestResult(result));
+      process.exit(0);
+    }
+
     throw new CliError(`未知命令：${args.command}`, 2);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -105,11 +113,29 @@ function main(argv: string[]): void {
 
 function parseArgs(argv: string[]): ParsedArgs {
   const positional: string[] = [];
-  const flags = new Set<string>();
+  const flags = new Map<string, string | true>();
+  const valueFlags = new Set(["--type", "--domain", "--title"]);
 
-  for (const arg of argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
     if (arg.startsWith("--")) {
-      flags.add(arg);
+      const equalsIndex = arg.indexOf("=");
+      if (equalsIndex > -1) {
+        flags.set(arg.slice(0, equalsIndex), arg.slice(equalsIndex + 1));
+        continue;
+      }
+
+      if (valueFlags.has(arg)) {
+        const next = argv[index + 1];
+        if (next && !next.startsWith("--")) {
+          flags.set(arg, next);
+          index += 1;
+        } else {
+          flags.set(arg, true);
+        }
+      } else {
+        flags.set(arg, true);
+      }
     } else {
       positional.push(arg);
     }
@@ -121,6 +147,9 @@ function parseArgs(argv: string[]): ParsedArgs {
     json: flags.has("--json"),
     force: flags.has("--force"),
     git: flags.has("--git"),
+    type: getStringFlag(flags, "--type"),
+    domain: getStringFlag(flags, "--domain"),
+    title: getStringFlag(flags, "--title"),
   };
 }
 
@@ -194,6 +223,24 @@ function buildStatus(startPath?: string): StatusResult {
   };
 }
 
+function runIngest(args: ParsedArgs): ReturnType<typeof ingestSource> {
+  if (!args.path) {
+    throw new CliError("pkwiki ingest 需要输入文件路径", 2);
+  }
+  if (!args.type) {
+    throw new CliError("pkwiki ingest 需要 --type", 2);
+  }
+  if (!args.domain) {
+    throw new CliError("pkwiki ingest 需要 --domain", 2);
+  }
+
+  return ingestSource(process.cwd(), args.path, {
+    type: args.type,
+    domain: args.domain,
+    title: args.title,
+  });
+}
+
 function getTemplateRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
   const packageRoot = dirname(dirname(currentFile));
@@ -244,6 +291,16 @@ function formatStatus(result: StatusResult): string {
   ].join("\n");
 }
 
+function formatIngestResult(result: ReturnType<typeof ingestSource>): string {
+  return [
+    `Source: ${result.sourceId}`,
+    `Raw: ${result.rawPath}`,
+    `Extracted: ${result.extractedPath}`,
+    `Checksum: ${result.checksum}`,
+    `Status: ${result.status}${result.reused ? " (reused)" : ""}`,
+  ].join("\n");
+}
+
 function formatValidation(result: ReturnType<typeof validateVault>): string {
   const lines = [
     `Vault: ${result.vaultRoot ?? "(not found)"}`,
@@ -270,8 +327,17 @@ function printHelp(): void {
       "  pkwiki init <path> [--force] [--git] [--json]",
       "  pkwiki status [path] [--json]",
       "  pkwiki validate [path] [--json]",
+      "  pkwiki ingest <file> --type <type> --domain <domain> [--title <title>] [--json]",
     ].join("\n"),
   );
+}
+
+function getStringFlag(
+  flags: Map<string, string | true>,
+  name: string,
+): string | undefined {
+  const value = flags.get(name);
+  return typeof value === "string" ? value : undefined;
 }
 
 class CliError extends Error {
@@ -280,3 +346,5 @@ class CliError extends Error {
     this.name = "CliError";
   }
 }
+
+main(process.argv.slice(2));

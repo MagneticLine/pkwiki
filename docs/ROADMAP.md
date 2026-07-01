@@ -16,7 +16,7 @@
 - index 生成
 - ESLint 质量门禁
 
-状态：0002 已进入 spec 阶段，先实现非 LLM ingest 和真实 lint。
+状态：已实现非 LLM ingest、source manifest、Extracted Source 模板和真实 ESLint 质量门禁。page manifest 与 index 生成进入后续阶段。
 
 ## 阶段 3
 
