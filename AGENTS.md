@@ -25,4 +25,5 @@ node packages/cli/dist/index.js status <vault> --json
 node packages/cli/dist/index.js validate <vault> --json
 node packages/cli/dist/index.js ingest <file> --type <type> --domain <domain> --json
 node packages/cli/dist/index.js index <vault> --json
+node packages/cli/dist/index.js apply-patch <plan> --dry-run --json
 ```

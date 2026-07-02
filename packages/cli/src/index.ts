@@ -20,6 +20,10 @@ import {
 } from "@pkwiki/core";
 import { getGitStatus } from "@pkwiki/git";
 import { generateIndex } from "@pkwiki/indexer";
+import {
+  PatchPlanError,
+  applyPatchPlan,
+} from "@pkwiki/patch";
 import { validateVault } from "@pkwiki/validator";
 
 type ParsedArgs = {
@@ -28,6 +32,7 @@ type ParsedArgs = {
   json: boolean;
   force: boolean;
   git: boolean;
+  dryRun: boolean;
   type?: string;
   domain?: string;
   title?: string;
@@ -53,6 +58,10 @@ type StatusResult = {
     clean: boolean;
     changedFiles: number;
   };
+};
+
+type ApplyPatchCliResult = ReturnType<typeof applyPatchPlan> & {
+  validation?: ReturnType<typeof validateVault>;
 };
 
 function main(argv: string[]): void {
@@ -97,15 +106,26 @@ function main(argv: string[]): void {
       process.exit(0);
     }
 
+    if (args.command === "apply-patch") {
+      const result = runApplyPatch(args);
+      writeOutput(args.json, result, formatApplyPatchResult(result));
+      const validationErrors = result.validation?.errors.length ?? 0;
+      process.exit(validationErrors > 0 ? 1 : 0);
+    }
+
     throw new CliError(`未知命令：${args.command}`, 2);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (args.json) {
+      const patchError = error instanceof PatchPlanError ? error : null;
       console.log(
         JSON.stringify(
           {
             ok: false,
+            code: patchError?.code,
             error: message,
+            path: patchError?.path,
+            operationIndex: patchError?.operationIndex,
           },
           null,
           2,
@@ -114,7 +134,13 @@ function main(argv: string[]): void {
     } else {
       console.error(`错误：${message}`);
     }
-    process.exit(error instanceof CliError ? error.exitCode : 2);
+    if (error instanceof CliError) {
+      process.exit(error.exitCode);
+    }
+    if (error instanceof PatchPlanError) {
+      process.exit(error.exitCode);
+    }
+    process.exit(2);
   }
 }
 
@@ -154,6 +180,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     json: flags.has("--json"),
     force: flags.has("--force"),
     git: flags.has("--git"),
+    dryRun: flags.has("--dry-run"),
     type: getStringFlag(flags, "--type"),
     domain: getStringFlag(flags, "--domain"),
     title: getStringFlag(flags, "--title"),
@@ -248,6 +275,22 @@ function runIngest(args: ParsedArgs): ReturnType<typeof ingestSource> {
   });
 }
 
+function runApplyPatch(args: ParsedArgs): ApplyPatchCliResult {
+  if (!args.path) {
+    throw new CliError("pkwiki apply-patch 需要 PatchPlan 文件路径", 2);
+  }
+  const result = applyPatchPlan(process.cwd(), args.path, {
+    dryRun: args.dryRun,
+  });
+  if (args.dryRun) {
+    return result;
+  }
+  return {
+    ...result,
+    validation: validateVault(result.vaultRoot),
+  };
+}
+
 function getTemplateRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
   const packageRoot = dirname(dirname(currentFile));
@@ -319,6 +362,27 @@ function formatIndexResult(result: ReturnType<typeof generateIndex>): string {
   ].join("\n");
 }
 
+function formatApplyPatchResult(result: ApplyPatchCliResult): string {
+  const lines = [
+    `Vault: ${result.vaultRoot}`,
+    `PatchPlan: ${result.planPath}`,
+    `Mode: ${result.dryRun ? "dry-run" : "apply"}`,
+    `Operations: ${result.operationCount}`,
+    "Changed files:",
+  ];
+  for (const file of result.changedFiles) {
+    lines.push(`  ${file}`);
+  }
+  if (result.validation) {
+    lines.push(
+      "Validation:",
+      `  errors: ${result.validation.errors.length}`,
+      `  warnings: ${result.validation.warnings.length}`,
+    );
+  }
+  return lines.join("\n");
+}
+
 function formatValidation(result: ReturnType<typeof validateVault>): string {
   const lines = [
     `Vault: ${result.vaultRoot ?? "(not found)"}`,
@@ -347,6 +411,7 @@ function printHelp(): void {
       "  pkwiki validate [path] [--json]",
       "  pkwiki ingest <file> --type <type> --domain <domain> [--title <title>] [--json]",
       "  pkwiki index [path] [--json]",
+      "  pkwiki apply-patch <plan> [--dry-run] [--json]",
     ].join("\n"),
   );
 }

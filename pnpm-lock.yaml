@@ -44,6 +44,9 @@ importers:
       '@pkwiki/indexer':
         specifier: workspace:*
         version: link:../indexer
+      '@pkwiki/patch':
+        specifier: workspace:*
+        version: link:../patch
       '@pkwiki/validator':
         specifier: workspace:*
         version: link:../validator
@@ -66,6 +69,12 @@ importers:
         version: 2.9.0
 
   packages/mcp:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/patch:
     dependencies:
       '@pkwiki/core':
         specifier: workspace:*

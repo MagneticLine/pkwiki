@@ -24,7 +24,7 @@
 - `pkwiki apply-patch`
 - lint 检查
 
-状态：进入 0004 spec 阶段，先实现 PatchPlan v0 与 `pkwiki apply-patch` MVP。
+状态：已实现 PatchPlan v0 与 `pkwiki apply-patch` MVP。当前不做自动 commit/push，Git 仍负责仓库级历史和审查。
 
 ## 阶段 4
 

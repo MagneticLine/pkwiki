@@ -14,7 +14,8 @@
 4. [Wiki Schema](docs/WIKI_SCHEMA.md)：说明 Wiki Page 的 frontmatter 和链接约定。
 5. [Agent Harness](docs/AGENT_HARNESS.md)：说明 Agent 如何通过受控工具维护 Vault。
 6. [Ingest Pipeline](docs/INGEST_PIPELINE.md)：说明从 Raw Source 到 Wiki 的编译式摄入流程。
-7. [路线图](docs/ROADMAP.md)：说明阶段性开发方向。
+7. [PatchPlan](docs/PATCH_PLAN.md)：说明受控修改协议和 `apply-patch` 的边界。
+8. [路线图](docs/ROADMAP.md)：说明阶段性开发方向。
 
 功能级 spec 放在 `specs/` 目录下。每个独立开发过程或模块都有自己的 Feature Spec：
 
@@ -60,6 +61,7 @@ specs/
 - `packages/cli`：`pkwiki` 命令行入口
 - `packages/validator`：OKF 与 pkwiki profile 校验
 - `packages/indexer`：搜索和索引生成
+- `packages/patch`：PatchPlan 解析和受控修改应用
 - `packages/git`：git status、diff、commit 辅助
 - `packages/agent`：agent harness 集成
 - `packages/mcp`：MCP server 集成
@@ -73,6 +75,7 @@ pkwiki status
 pkwiki validate
 pkwiki ingest <file> --type <type> --domain <domain>
 pkwiki index
+pkwiki apply-patch <plan>
 ```
 
 这些命令支持 Agent 使用的 `--json` 输出：
@@ -82,9 +85,10 @@ pkwiki status --json
 pkwiki validate --json
 pkwiki ingest <file> --type <type> --domain <domain> --json
 pkwiki index --json
+pkwiki apply-patch <plan> --dry-run --json
 ```
 
-后续规划命令包括 `apply-patch`、`diff`、`commit`、`mcp` 和 `serve`。
+后续规划命令包括 `diff`、`commit`、`mcp` 和 `serve`。
 
 ## 开发命令
 

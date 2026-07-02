@@ -107,3 +107,62 @@ test("index 支持 JSON 输出", () => {
   assert.equal(result.pageManifestPath, ".pkwiki/page_manifest.json");
   assert.equal(result.indexPath, "outputs/index.json");
 });
+
+test("apply-patch 支持 dry-run 和 JSON 输出", () => {
+  const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-patch-"));
+  const vault = join(parent, "vault");
+  run(["init", vault, "--json"]);
+  const pageDirectory = join(vault, "wiki/career");
+  mkdirSync(pageDirectory, { recursive: true });
+  const pagePath = join(pageDirectory, "internship.md");
+  writeFileSync(
+    pagePath,
+    [
+      "---",
+      'okf_version: "0.1"',
+      "profile: pkwiki/0.1",
+      "id: career/internship",
+      "type: Project",
+      "title: Internship",
+      "description: Internship page.",
+      "domain: career",
+      "status: active",
+      "created: 2026-07-01",
+      "updated: 2026-07-01",
+      "confidence: medium",
+      "privacy: private",
+      "sources: [src:internship]",
+      "tags: [career]",
+      "---",
+      "",
+      "# Internship",
+      "",
+      "Old text.",
+    ].join("\n"),
+  );
+  const planPath = join(parent, "plan.json");
+  writeFileSync(
+    planPath,
+    JSON.stringify({
+      version: "pkwiki.patch-plan/0.1",
+      summary: "替换低敏测试文本",
+      operations: [
+        {
+          type: "replace_text",
+          path: "wiki/career/internship.md",
+          find: "Old text.",
+          replace: "New text.",
+        },
+      ],
+    }),
+  );
+
+  const dryRun = JSON.parse(run(["apply-patch", planPath, "--dry-run", "--json"], vault));
+  assert.equal(dryRun.ok, true);
+  assert.equal(dryRun.dryRun, true);
+  assert.equal(dryRun.changedFiles[0], "wiki/career/internship.md");
+
+  const result = JSON.parse(run(["apply-patch", planPath, "--json"], vault));
+  assert.equal(result.ok, true);
+  assert.equal(result.validation.errors.length, 0);
+});

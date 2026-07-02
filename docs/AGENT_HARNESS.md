@@ -22,6 +22,18 @@ Agent Harness 是 `pkwiki` 面向 Wiki 维护场景提供的质量适配层。
 5. 查看 git diff。
 6. 人确认后再 commit。
 
+## PatchPlan 与版本管理
+
+PatchPlan 是 Agent 修改 Wiki 的操作级协议，Git 是 Vault 的仓库级历史。
+
+短期内二者分工如下：
+
+- PatchPlan 记录 Agent 的修改意图、目标文件、有限 operation 和可选 checksum。
+- `pkwiki apply-patch` 负责路径安全、操作语义和 apply 后校验。
+- Git 负责 diff 审查、提交历史、分支协作和回滚。
+
+未来可以在 apply 时记录 inverse plan，提供 pkwiki 级 undo/redo。但在 PatchPlan v0 阶段，undo/redo 不替代 Git，先以可审查、安全应用和 dogfood 反馈为主。
+
 ## 能力方向
 
 Harness 后续需要围绕 Wiki 场景补足 Agent 的能力短板：
