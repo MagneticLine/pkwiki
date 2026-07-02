@@ -19,7 +19,7 @@ Agent Harness 是 `pkwiki` 面向 Wiki 维护场景提供的质量适配层。
 2. 生成结构化 patch plan。
 3. 由 `pkwiki` 应用 patch。
 4. 运行 validate 和 lint。
-5. 查看 git diff。
+5. 通过 `pkwiki diff` 查看 Git worktree 变更摘要。
 6. 人确认后再 commit。
 
 ## PatchPlan 与版本管理

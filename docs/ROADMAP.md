@@ -25,7 +25,7 @@
 - `pkwiki diff`
 - lint 检查
 
-状态：已实现 PatchPlan v0 与 `pkwiki apply-patch` MVP。0005 计划补齐只读 Git diff 变更审查。当前不做自动 commit/push，Git 仍负责仓库级历史和审查。
+状态：已实现 PatchPlan v0、`pkwiki apply-patch` MVP 与只读 `pkwiki diff` 变更审查。当前不做自动 commit/push，Git 仍负责仓库级历史和审查。
 
 ## 阶段 4
 

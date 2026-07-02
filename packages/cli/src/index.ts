@@ -18,7 +18,11 @@ import {
   ingestSource,
   loadVault,
 } from "@pkwiki/core";
-import { getGitStatus } from "@pkwiki/git";
+import {
+  GitDiffError,
+  getGitDiffSummary,
+  getGitStatus,
+} from "@pkwiki/git";
 import { generateIndex } from "@pkwiki/indexer";
 import {
   PatchPlanError,
@@ -33,6 +37,7 @@ type ParsedArgs = {
   force: boolean;
   git: boolean;
   dryRun: boolean;
+  nameOnly: boolean;
   type?: string;
   domain?: string;
   title?: string;
@@ -113,16 +118,24 @@ function main(argv: string[]): void {
       process.exit(validationErrors > 0 ? 1 : 0);
     }
 
+    if (args.command === "diff") {
+      const result = runDiff(args);
+      writeOutput(args.json, result, formatDiffResult(result, args.nameOnly));
+      process.exit(0);
+    }
+
     throw new CliError(`未知命令：${args.command}`, 2);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (args.json) {
       const patchError = error instanceof PatchPlanError ? error : null;
+      const gitDiffError = error instanceof GitDiffError ? error : null;
       console.log(
         JSON.stringify(
           {
             ok: false,
-            code: patchError?.code,
+            code: patchError?.code ?? gitDiffError?.code,
+            message,
             error: message,
             path: patchError?.path,
             operationIndex: patchError?.operationIndex,
@@ -138,6 +151,9 @@ function main(argv: string[]): void {
       process.exit(error.exitCode);
     }
     if (error instanceof PatchPlanError) {
+      process.exit(error.exitCode);
+    }
+    if (error instanceof GitDiffError) {
       process.exit(error.exitCode);
     }
     process.exit(2);
@@ -181,6 +197,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     force: flags.has("--force"),
     git: flags.has("--git"),
     dryRun: flags.has("--dry-run"),
+    nameOnly: flags.has("--name-only"),
     type: getStringFlag(flags, "--type"),
     domain: getStringFlag(flags, "--domain"),
     title: getStringFlag(flags, "--title"),
@@ -291,6 +308,13 @@ function runApplyPatch(args: ParsedArgs): ApplyPatchCliResult {
   };
 }
 
+function runDiff(args: ParsedArgs): ReturnType<typeof getGitDiffSummary> {
+  const vault = loadVault(process.cwd());
+  return getGitDiffSummary(vault.root, {
+    path: args.path,
+  });
+}
+
 function getTemplateRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
   const packageRoot = dirname(dirname(currentFile));
@@ -383,6 +407,65 @@ function formatApplyPatchResult(result: ApplyPatchCliResult): string {
   return lines.join("\n");
 }
 
+function formatDiffResult(
+  result: ReturnType<typeof getGitDiffSummary>,
+  nameOnly: boolean,
+): string {
+  if (nameOnly) {
+    return result.files.map((file) => file.path).join("\n");
+  }
+
+  const lines = [
+    `Vault: ${result.vaultRoot}`,
+    `Clean: ${result.clean ? "yes" : "no"}`,
+    "",
+    "Changed files:",
+  ];
+  if (result.files.length === 0) {
+    lines.push("  (none)");
+  } else {
+    for (const file of result.files) {
+      const previousPath = file.previousPath ? ` <- ${file.previousPath}` : "";
+      lines.push(`  ${formatDiffStatus(file.status)} ${file.path}${previousPath}`);
+    }
+  }
+
+  lines.push("", "Areas:");
+  for (const [area, count] of Object.entries(result.areas)) {
+    if (count > 0) {
+      lines.push(`  ${area}: ${count}`);
+    }
+  }
+  if (Object.values(result.areas).every((count) => count === 0)) {
+    lines.push("  (none)");
+  }
+
+  lines.push(
+    "",
+    "Diff stat:",
+    `  files changed: ${result.stat.filesChanged}`,
+    `  insertions: ${result.stat.insertions}`,
+    `  deletions: ${result.stat.deletions}`,
+  );
+  if (result.rawStatText) {
+    lines.push("", result.rawStatText);
+  }
+  return lines.join("\n");
+}
+
+function formatDiffStatus(status: string): string {
+  const labels: Record<string, string> = {
+    added: "A",
+    modified: "M",
+    deleted: "D",
+    renamed: "R",
+    copied: "C",
+    untracked: "??",
+    unknown: "?",
+  };
+  return labels[status] ?? "?";
+}
+
 function formatValidation(result: ReturnType<typeof validateVault>): string {
   const lines = [
     `Vault: ${result.vaultRoot ?? "(not found)"}`,
@@ -412,6 +495,7 @@ function printHelp(): void {
       "  pkwiki ingest <file> --type <type> --domain <domain> [--title <title>] [--json]",
       "  pkwiki index [path] [--json]",
       "  pkwiki apply-patch <plan> [--dry-run] [--json]",
+      "  pkwiki diff [path] [--name-only] [--json]",
     ].join("\n"),
   );
 }

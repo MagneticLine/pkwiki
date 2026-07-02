@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,18 @@ function run(args, cwd = process.cwd()) {
     encoding: "utf8",
     cwd,
   });
+}
+
+function git(args, cwd) {
+  return execFileSync("git", args, {
+    encoding: "utf8",
+    cwd,
+  });
+}
+
+function configureGit(cwd) {
+  git(["config", "user.name", "pkwiki-test"], cwd);
+  git(["config", "user.email", "pkwiki-test@example.com"], cwd);
 }
 
 test("init/status/validate 支持 JSON 输出", () => {
@@ -165,4 +177,84 @@ test("apply-patch 支持 dry-run 和 JSON 输出", () => {
   const result = JSON.parse(run(["apply-patch", planPath, "--json"], vault));
   assert.equal(result.ok, true);
   assert.equal(result.validation.errors.length, 0);
+});
+
+test("diff 支持 clean、dirty、JSON 和 name-only 输出", () => {
+  const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-diff-"));
+  const vault = join(parent, "vault");
+  run(["init", vault, "--json", "--git"]);
+  configureGit(vault);
+  git(["add", "."], vault);
+  git(["commit", "-m", "test: 初始化测试 vault"], vault);
+
+  const clean = JSON.parse(run(["diff", "--json"], vault));
+  assert.equal(clean.ok, true);
+  assert.equal(clean.clean, true);
+  assert.deepEqual(clean.files, []);
+
+  writeFileSync(join(vault, "wiki/diff-test.md"), "# Diff Test\n");
+  writeFileSync(join(vault, "raw/inbox/diff-source.md"), "raw source\n");
+
+  const dirty = JSON.parse(run(["diff", "--json"], vault));
+  assert.equal(dirty.ok, true);
+  assert.equal(dirty.clean, false);
+  assert.deepEqual(
+    dirty.files.map((file) => ({
+      path: file.path,
+      status: file.status,
+      area: file.area,
+    })),
+    [
+      {
+        path: "raw/inbox/diff-source.md",
+        status: "untracked",
+        area: "raw",
+      },
+      {
+        path: "wiki/diff-test.md",
+        status: "untracked",
+        area: "wiki",
+      },
+    ],
+  );
+
+  const nameOnly = run(["diff", "--name-only"], vault)
+    .split(/\r?\n/)
+    .filter(Boolean);
+  assert.deepEqual(nameOnly, [
+    "raw/inbox/diff-source.md",
+    "wiki/diff-test.md",
+  ]);
+
+  const filtered = JSON.parse(run(["diff", "wiki", "--json"], vault));
+  assert.deepEqual(filtered.files.map((file) => file.path), ["wiki/diff-test.md"]);
+});
+
+test("diff 支持 modified、deleted 和 unsafe path 错误", () => {
+  const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-diff-modified-"));
+  const vault = join(parent, "vault");
+  run(["init", vault, "--json", "--git"]);
+  configureGit(vault);
+  writeFileSync(join(vault, "wiki/diff-test.md"), "# Diff Test\n");
+  git(["add", "."], vault);
+  git(["commit", "-m", "test: 初始化测试 vault"], vault);
+
+  writeFileSync(join(vault, "wiki/diff-test.md"), "# Diff Test\n\nChanged.\n");
+  rmSync(join(vault, "system/LOG.md"));
+
+  const result = JSON.parse(run(["diff", "--json"], vault));
+  assert.equal(result.clean, false);
+  assert.equal(
+    result.files.find((file) => file.path === "wiki/diff-test.md").status,
+    "modified",
+  );
+  assert.equal(
+    result.files.find((file) => file.path === "system/LOG.md").status,
+    "deleted",
+  );
+  assert.equal(result.stat.insertions > 0, true);
+
+  assert.throws(() => run(["diff", "../outside", "--json"], vault), {
+    status: 2,
+  });
 });
