@@ -39,6 +39,10 @@ specs/
     requirements.md
     design.md
     tasks.md
+  0005-git-diff-review/
+    requirements.md
+    design.md
+    tasks.md
 ```
 
 ## 范围

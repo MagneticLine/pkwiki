@@ -81,6 +81,14 @@ _Avoid_: prompt, 随意编辑, Git diff, commit
 读取 PatchPlan 并用确定性逻辑应用修改的 CLI Command。`pkwiki apply-patch` 负责路径安全、checksum、operation 语义和 apply 后校验，但不负责自动 commit 或 push。
 _Avoid_: Agent 自己写文件, git apply, 自动提交
 
+**Git Diff Review**:
+PatchPlan 应用后的只读变更审查过程，用于让 Human Maintainer 和 Agent 理解当前 Vault 相对 Git worktree 的变更范围、文件状态、区域分类和 diff 摘要。它不负责提交、推送、回滚，也不替代 Git。
+_Avoid_: commit, push, undo, 版本管理系统
+
+**diff**:
+读取 Git worktree 并输出 Vault 变更摘要的 CLI Command。`pkwiki diff` 面向 Human Maintainer 输出可扫读摘要，`pkwiki diff --json` 面向 Agent 输出结构化变更信息。
+_Avoid_: Git diff 原生命令, apply-patch, commit
+
 **Source-to-Wiki Merge**:
 将一份 Raw Source 或 Extracted Source 中的信息完整、正确、可追溯地合并进 Wiki 的过程。它是 `pkwiki` 的长期质量目标，不等同于简单摘要或文件复制。
 _Avoid_: ingest, summarize, import
