@@ -12,3 +12,9 @@
 8. 应用 patch。
 9. 校验。
 10. 查看 diff 并提交。
+
+详细契约见：
+
+- [Vault Spec](VAULT_SPEC.md)
+- [Extracted Source Schema](EXTRACTED_SOURCE_SCHEMA.md)
+- [Source-to-Wiki Merge](SOURCE_TO_WIKI_MERGE.md)

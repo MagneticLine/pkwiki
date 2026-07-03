@@ -54,7 +54,7 @@ Raw Source 在 Vault 内的稳定标识，格式为 `src:YYYY-MM-DD-slug`。Sour
 _Avoid_: 文件名, 路径, page id
 
 **Source Manifest**:
-`.pkwiki/source_manifest.json` 中的机器可读 source 登记表，记录 Source ID、Raw Source 路径、Extracted Source 路径、类型、领域、checksum 和状态。
+`.pkwiki/source_manifest.json` 中的机器可读 source 登记表，记录 Source ID、Raw Source 路径、Extracted Source 路径、类型、领域、checksum 和状态。Source 记录不应因 Raw Source 删除而直接消失，实际文件缺失时应进入 `deleted` 状态以保留审计线索。
 _Avoid_: index, Wiki, 清单
 
 **Page Manifest**:
@@ -92,6 +92,14 @@ _Avoid_: Git diff 原生命令, apply-patch, commit
 **Source-to-Wiki Merge**:
 将一份 Raw Source 或 Extracted Source 中的信息完整、正确、可追溯地合并进 Wiki 的过程。它是 `pkwiki` 的长期质量目标，不等同于简单摘要或文件复制。
 _Avoid_: ingest, summarize, import
+
+**MergePlan**:
+Agent 在生成 PatchPlan 前产出的合并决策计划。MergePlan 记录 sourceIds、候选 Wiki Page、每个信息单元的处理决策、隐私和不确定性说明。PatchPlan 回答“怎么改文件”，MergePlan 回答“为什么这样合并”。
+_Avoid_: PatchPlan, prompt, 摘要
+
+**Merge Coverage**:
+Extracted Source 中记录素材信息处理结果的覆盖表，用于说明哪些 facts/events/entities 已合并、延后、舍弃或需要用户确认。Merge Coverage 的目标是避免 Agent 无声丢失重要信息。
+_Avoid_: 测试覆盖率, Git diff, 简单摘要
 
 **Wiki Health**:
 Wiki 长期演进后的结构和内容健康状态，包括是否存在冗余、过时、矛盾、断链、孤儿页面、过长页面和缺少来源的 claim。

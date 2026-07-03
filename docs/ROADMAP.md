@@ -29,9 +29,14 @@
 
 ## 阶段 4
 
-- agent 集成
+- Source-to-Wiki Merge 协议
+- Extracted Source Schema
+- MergePlan
+- Agent 集成
 - MCP server
 - 本地 Web UI
+
+状态：进入规划展开。阶段 4 不应先做集成壳子，而应先固定 Agent 合并素材的契约、覆盖记录和用户确认机制。
 
 ## 阶段 5
 

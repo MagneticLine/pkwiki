@@ -11,12 +11,16 @@
 1. [产品定义](docs/PRODUCT.md)：说明 `pkwiki` 是什么、第一用户是谁、最终产物是什么、长期质量目标是什么。
 2. [术语表](CONTEXT.md)：统一产品语言，避免 CLI、Agent、Vault、Wiki、Source 等概念混用。
 3. [架构](docs/ARCHITECTURE.md)：说明内容层、确定性工具层和 Agent 层的关系。
-4. [Wiki Schema](docs/WIKI_SCHEMA.md)：说明 Wiki Page 的 frontmatter 和链接约定。
-5. [Agent Harness](docs/AGENT_HARNESS.md)：说明 Agent 如何通过受控工具维护 Vault。
-6. [Ingest Pipeline](docs/INGEST_PIPELINE.md)：说明从 Raw Source 到 Wiki 的编译式摄入流程。
-7. [PatchPlan](docs/PATCH_PLAN.md)：说明受控修改协议和 `apply-patch` 的边界。
-8. [Git Diff Review](docs/GIT_DIFF_REVIEW.md)：说明 `apply-patch` 后如何审查 Git worktree 变更。
-9. [路线图](docs/ROADMAP.md)：说明阶段性开发方向。
+4. [Vault Spec](docs/VAULT_SPEC.md)：说明完整 Vault 目录、manifest 和读写边界。
+5. [Wiki Schema](docs/WIKI_SCHEMA.md)：说明 Wiki Page 的 frontmatter 和链接约定。
+6. [Extracted Source Schema](docs/EXTRACTED_SOURCE_SCHEMA.md)：说明 Raw Source 到 Wiki 之间的中间层结构。
+7. [Source-to-Wiki Merge](docs/SOURCE_TO_WIKI_MERGE.md)：说明 Agent 如何规划、覆盖和审查素材合并。
+8. [Page Types And Style](docs/PAGE_TYPES_AND_STYLE.md)：说明个人 Wiki 的页面类型、风格和信息粒度。
+9. [Agent Harness](docs/AGENT_HARNESS.md)：说明 Agent 如何通过受控工具维护 Vault。
+10. [Ingest Pipeline](docs/INGEST_PIPELINE.md)：说明从 Raw Source 到 Wiki 的编译式摄入流程。
+11. [PatchPlan](docs/PATCH_PLAN.md)：说明受控修改协议和 `apply-patch` 的边界。
+12. [Git Diff Review](docs/GIT_DIFF_REVIEW.md)：说明 `apply-patch` 后如何审查 Git worktree 变更。
+13. [路线图](docs/ROADMAP.md)：说明阶段性开发方向。
 
 功能级 spec 放在 `specs/` 目录下。每个独立开发过程或模块都有自己的 Feature Spec：
 
