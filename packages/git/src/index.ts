@@ -132,6 +132,7 @@ export function getGitDiffSummary(
   const statusOutput = runGit(vaultRoot, [
     "status",
     "--porcelain=v1",
+    "-uall",
     ...pathArgs,
   ]);
   const files = parsePorcelainStatus(statusOutput);

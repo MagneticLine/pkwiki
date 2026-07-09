@@ -192,7 +192,8 @@ test("diff 支持 clean、dirty、JSON 和 name-only 输出", () => {
   assert.equal(clean.clean, true);
   assert.deepEqual(clean.files, []);
 
-  writeFileSync(join(vault, "wiki/diff-test.md"), "# Diff Test\n");
+  mkdirSync(join(vault, "wiki/career"), { recursive: true });
+  writeFileSync(join(vault, "wiki/career/diff-test.md"), "# Diff Test\n");
   writeFileSync(join(vault, "raw/inbox/diff-source.md"), "raw source\n");
 
   const dirty = JSON.parse(run(["diff", "--json"], vault));
@@ -211,7 +212,7 @@ test("diff 支持 clean、dirty、JSON 和 name-only 输出", () => {
         area: "raw",
       },
       {
-        path: "wiki/diff-test.md",
+        path: "wiki/career/diff-test.md",
         status: "untracked",
         area: "wiki",
       },
@@ -223,11 +224,13 @@ test("diff 支持 clean、dirty、JSON 和 name-only 输出", () => {
     .filter(Boolean);
   assert.deepEqual(nameOnly, [
     "raw/inbox/diff-source.md",
-    "wiki/diff-test.md",
+    "wiki/career/diff-test.md",
   ]);
 
   const filtered = JSON.parse(run(["diff", "wiki", "--json"], vault));
-  assert.deepEqual(filtered.files.map((file) => file.path), ["wiki/diff-test.md"]);
+  assert.deepEqual(filtered.files.map((file) => file.path), [
+    "wiki/career/diff-test.md",
+  ]);
 });
 
 test("diff 支持 modified、deleted 和 unsafe path 错误", () => {
