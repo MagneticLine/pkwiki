@@ -38,6 +38,8 @@
 
 状态：进入规划展开。阶段 4 不应先做集成壳子，而应先固定 Agent 合并素材的契约、覆盖记录和用户确认机制。
 
+当前批次：0006 先落地 Vault/Source 契约，包括 Source Manifest v0.2、`deleted` source status、raw checksum/size 校验和 Extracted Source 模板升级。
+
 ## 阶段 5
 
 - Wiki Health 检查

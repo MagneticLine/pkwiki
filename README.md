@@ -48,6 +48,10 @@ specs/
     requirements.md
     design.md
     tasks.md
+  0006-vault-source-contract/
+    requirements.md
+    design.md
+    tasks.md
 ```
 
 ## 范围
