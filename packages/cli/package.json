@@ -7,11 +7,14 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "echo \"TODO: cli tests\"",
-    "lint": "echo \"TODO: cli lint\""
+    "test": "node --test test/*.test.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@pkwiki/core": "workspace:*"
+    "@pkwiki/core": "workspace:*",
+    "@pkwiki/git": "workspace:*",
+    "@pkwiki/indexer": "workspace:*",
+    "@pkwiki/patch": "workspace:*",
+    "@pkwiki/validator": "workspace:*"
   }
 }
-

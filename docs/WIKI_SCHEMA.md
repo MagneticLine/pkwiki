@@ -26,3 +26,5 @@ tags:
 ```
 
 标准链接格式使用 Markdown links，不把 Obsidian wikilink 作为核心格式。
+
+`pkwiki index` 会从 `wiki/` 扫描这些 Wiki Page，生成 `.pkwiki/page_manifest.json` 和 `outputs/index.json`。Page Manifest 与 Search Index 是可再生成的机器索引，不是长期知识事实来源；长期事实仍以 Wiki Page 本身为准。

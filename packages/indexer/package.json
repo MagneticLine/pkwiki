@@ -6,11 +6,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "echo \"TODO: indexer tests\"",
-    "lint": "echo \"TODO: indexer lint\""
+    "test": "node --test test/*.test.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@pkwiki/core": "workspace:*"
+    "@pkwiki/core": "workspace:*",
+    "yaml": "^2.6.1"
   }
 }
-

@@ -6,11 +6,12 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "echo \"TODO: validator tests\"",
-    "lint": "echo \"TODO: validator lint\""
+    "test": "node --test test/*.test.mjs",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@pkwiki/core": "workspace:*"
+    "@pkwiki/core": "workspace:*",
+    "@pkwiki/indexer": "workspace:*",
+    "yaml": "^2.6.1"
   }
 }
-

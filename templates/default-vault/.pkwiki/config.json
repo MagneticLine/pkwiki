@@ -1,0 +1,9 @@
+{
+  "profile": "pkwiki/0.1",
+  "okfVersion": "0.1",
+  "wikiRoot": "wiki",
+  "rawRoot": "raw",
+  "extractedRoot": "extracted",
+  "outputsRoot": "outputs"
+}
+
