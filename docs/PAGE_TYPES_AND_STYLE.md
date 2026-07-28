@@ -9,6 +9,7 @@
 - 页面类型服务 Source-to-Wiki Merge，不只是 frontmatter 标签。
 - 不同页面类型允许不同的时间粒度、隐私等级、证据要求和更新方式。
 - Agent 不确定页面类型时，应先记录候选类型并请求确认。
+- 页面类型必须服务当前 Vault 的目的，不能为了分类完整而创建无长期价值的页面。
 
 ## 2. 基础页面类型
 
@@ -219,6 +220,8 @@ PRIVACY_RULES.md
 ```
 
 当 Human Maintainer 指出 Agent 的合并方式不符合预期时，应优先把可复用偏好沉淀到这些文件，而不是只修一次页面。
+
+规则更新必须经过 Human Maintainer 确认。Agent 可以根据 feedback 提出 policy patch，但不能自行扩大保留范围、降低隐私等级或改变 Vault 的核心目的。
 
 ## 6. Agent 决策提示
 

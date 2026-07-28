@@ -1,86 +1,72 @@
 # pkwiki
 
-`pkwiki` 是一个面向 LLM Agent 的文件优先个人知识编译工具。
+`pkwiki` 是一个本地优先、文件为真相源、由 Agent 驱动的个人知识编译与维护系统。
 
-它用于创建和维护私密 Markdown Wiki，让人、Agent、Obsidian、静态站点生成器以及后续 MCP 客户端都能读取。Wiki 格式兼容 OKF，并额外定义更严格的 `pkwiki` 个人知识管理 profile。
+它把聊天、文档、日记、经历、健康记录和学习资料等零散 Raw Source，增量编译成可追溯、可查询、可演进的 Markdown Wiki。Human Maintainer 拥有最终控制权；Agent 负责提取、定位、规划、合并、查询和维护；确定性工具负责约束写入、校验结果和保留审计记录。
+
+Wiki 层以 OKF v0.1 作为外部兼容目标，并使用更严格的 `pkwiki/0.1` profile。完整 Vault 还包含 Raw Source、Extracted Source、规则、manifest 和后续 Run Record。
 
 ## 文档地图
 
-建议按这个顺序阅读：
+建议按以下顺序阅读：
 
-1. [产品定义](docs/PRODUCT.md)：说明 `pkwiki` 是什么、第一用户是谁、最终产物是什么、长期质量目标是什么。
-2. [术语表](CONTEXT.md)：统一产品语言，避免 CLI、Agent、Vault、Wiki、Source 等概念混用。
-3. [架构](docs/ARCHITECTURE.md)：说明内容层、确定性工具层和 Agent 层的关系。
-4. [Vault Spec](docs/VAULT_SPEC.md)：说明完整 Vault 目录、manifest 和读写边界。
-5. [Wiki Schema](docs/WIKI_SCHEMA.md)：说明 Wiki Page 的 frontmatter 和链接约定。
-6. [Extracted Source Schema](docs/EXTRACTED_SOURCE_SCHEMA.md)：说明 Raw Source 到 Wiki 之间的中间层结构。
-7. [Source-to-Wiki Merge](docs/SOURCE_TO_WIKI_MERGE.md)：说明 Agent 如何规划、覆盖和审查素材合并。
-8. [Page Types And Style](docs/PAGE_TYPES_AND_STYLE.md)：说明个人 Wiki 的页面类型、风格和信息粒度。
-9. [Agent Harness](docs/AGENT_HARNESS.md)：说明 Agent 如何通过受控工具维护 Vault。
-10. [Ingest Pipeline](docs/INGEST_PIPELINE.md)：说明从 Raw Source 到 Wiki 的编译式摄入流程。
-11. [PatchPlan](docs/PATCH_PLAN.md)：说明受控修改协议和 `apply-patch` 的边界。
-12. [Git Diff Review](docs/GIT_DIFF_REVIEW.md)：说明 `apply-patch` 后如何审查 Git worktree 变更。
-13. [路线图](docs/ROADMAP.md)：说明阶段性开发方向。
+1. [产品定义](docs/PRODUCT.md)：产品目的、用户、核心工作流和非目标。
+2. [术语表](CONTEXT.md)：Human Maintainer、Agent、Vault、Source、Harness 和 Merge 等领域语言。
+3. [架构](docs/ARCHITECTURE.md)：确定性引擎、Harness Core、Runtime Adapter 和外部入口。
+4. [路线图](docs/ROADMAP.md)：唯一权威产品阶段和 Feature Spec 顺序。
+5. [Vault Spec](docs/VAULT_SPEC.md)：Vault 目录、manifest、状态、Run Record 和读写边界。
+6. [Wiki Schema](docs/WIKI_SCHEMA.md)：Wiki Page frontmatter、链接和 OKF 兼容边界。
+7. [Page Types And Style](docs/PAGE_TYPES_AND_STYLE.md)：页面类型、信息粒度和用户偏好学习。
+8. [Extracted Source Schema](docs/EXTRACTED_SOURCE_SCHEMA.md)：人类可读 extraction 工作层。
+9. [Ingest Pipeline](docs/INGEST_PIPELINE.md)：编译器式 Source 摄入流水线。
+10. [Source-to-Wiki Merge](docs/SOURCE_TO_WIKI_MERGE.md)：定位、取舍、coverage、冲突和审查。
+11. [Agent Harness](docs/AGENT_HARNESS.md)：Context Pack、Run、Runtime Adapter、Query 和 File-back。
+12. [PatchPlan](docs/PATCH_PLAN.md)：受控修改协议和 `apply-patch` 边界。
+13. [Git Diff Review](docs/GIT_DIFF_REVIEW.md)：Patch 后的 worktree 变更审查。
 
-功能级 spec 放在 `specs/` 目录下。每个独立开发过程或模块都有自己的 Feature Spec：
+`docs/PRODUCT.md` 定义产品，`docs/ROADMAP.md` 定义阶段，`specs/<feature>/` 定义单次开发批次。其他文档不能各自维护新的产品路线图。
 
-Feature Spec 编号表示开发批次，不等同于路线图阶段编号。一个路线图阶段可以拆成多个 Feature Spec。
+## Feature Spec
 
 ```text
 specs/
   0001-cli-mvp/
-    requirements.md
-    design.md
-    tasks.md
   0002-source-ingest-quality-gate/
-    requirements.md
-    design.md
-    tasks.md
   0003-page-manifest-index/
-    requirements.md
-    design.md
-    tasks.md
   0004-patch-plan-apply/
-    requirements.md
-    design.md
-    tasks.md
   0005-git-diff-review/
-    requirements.md
-    design.md
-    tasks.md
   0006-vault-source-contract/
-    requirements.md
-    design.md
-    tasks.md
 ```
 
-## 范围
+每个目录包含：
 
-这个仓库只放可复用代码和模板：
+```text
+requirements.md
+design.md
+tasks.md
+```
 
-- vault 初始化模板
-- schema 校验
-- index 生成
-- source/page manifest
-- patch plan 应用
-- git diff 和 commit 辅助
-- 后续 agent、MCP、Web UI 集成
+Feature Spec 编号表示开发批次，不等同于路线图阶段。后续计划批次见 [路线图](docs/ROADMAP.md)。
 
-个人数据应放在独立的私密 vault 仓库里。
+## 仓库边界
 
-## 计划模块
+这个公开仓库只放可复用产品代码、模板、协议、文档和低敏测试素材。真实个人数据应放在独立 private Vault 仓库中。
 
-- `packages/core`：workspace、路径、配置、source id、manifest 逻辑
-- `packages/cli`：`pkwiki` 命令行入口
-- `packages/validator`：OKF 与 pkwiki profile 校验
-- `packages/indexer`：搜索和索引生成
-- `packages/patch`：PatchPlan 解析和受控修改应用
-- `packages/git`：git status、diff、commit 辅助
-- `packages/agent`：agent harness 集成
-- `packages/mcp`：MCP server 集成
-- `packages/web`：本地 Web UI
+## 模块
 
-## 当前已实现命令
+- `packages/core`：Vault、配置、Source 和 manifest 契约。
+- `packages/validator`：结构、链接、manifest、引用和完整性校验。
+- `packages/indexer`：Page Manifest 和 Search Index。
+- `packages/patch`：PatchPlan 解析和受控应用。
+- `packages/git`：Git status 和 diff 审查。
+- `packages/cli`：面向人和 Agent 的确定性命令入口。
+- `packages/agent`：Runtime-neutral Harness Core 和 Runtime Adapter 边界。
+- `packages/mcp`：MCP server。
+- `packages/web`：本地审查型 Web UI。
+
+## 当前已实现
+
+0001 到 0005 已实现：
 
 ```bash
 pkwiki init <vault>
@@ -92,18 +78,9 @@ pkwiki apply-patch <plan>
 pkwiki diff
 ```
 
-这些命令支持 Agent 使用的 `--json` 输出：
+关键命令支持 Agent 使用的 `--json` 输出。
 
-```bash
-pkwiki status --json
-pkwiki validate --json
-pkwiki ingest <file> --type <type> --domain <domain> --json
-pkwiki index --json
-pkwiki apply-patch <plan> --dry-run --json
-pkwiki diff --json
-```
-
-后续规划命令包括 `commit`、`mcp` 和 `serve`。
+当前 0006 Spec 已完成修订，下一步实现 Source Manifest v0.2、双状态、Raw 完整性校验和 Extracted Source 模板升级。Agent Harness、Query、File-back、MCP、HTTP、Web UI 和 Self-maintenance 尚未实现。
 
 ## 开发命令
 
@@ -112,4 +89,7 @@ pnpm install
 pnpm build
 pnpm test
 pnpm lint
+pnpm -r lint
 ```
+
+详细开发状态和下一阶段以 [路线图](docs/ROADMAP.md) 为准。

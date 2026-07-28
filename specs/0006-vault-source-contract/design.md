@@ -2,42 +2,43 @@
 
 ## 1. 设计原则
 
-- 文档契约优先转成确定性代码。
-- Source Manifest 记录事实，不替代 Raw Source。
-- `deleted` 是生命周期状态，不是删除记录。
-- validate 应尽量发现不一致，但保持老 Vault 可用。
-- Extracted Source 模板应服务 Agent merge，不只是给人看的空文档。
+- Source Manifest 记录来源事实和状态，不替代 Raw Source。
+- Processing Status 与 Lifecycle Status 相互独立。
+- 新数据使用明确双状态，旧数据通过兼容分支读取。
+- validate 尽量发现不一致，但不让已有 Vault 因可选 metadata 缺失而失效。
+- Extracted Source 模板服务后续 Agent workflow，但 0006 不伪装成已经实现 extraction。
 
 ## 2. 模块分工
 
 ```text
 packages/core
-  SourceStatus、SourceManifestEntry、ingestSource、Extracted Source 模板。
+  Source 类型、状态归一化、ingest metadata、Extracted Source 模板。
 
 packages/validator
-  source manifest 字段、status、raw checksum、raw size、deleted 语义检查。
+  manifest 字段、双状态、Raw checksum、size 和 deleted 语义。
 
 packages/cli
-  ingest JSON 输出自动继承新增字段；可选暴露 privacy/language 参数。
+  privacy/language 参数和 JSON 输出。
 
 templates/default-vault
-  更新 system/INGEST_RULES.md 和必要规则说明。
+  更新规则、页面类型和推荐 policy 文件。
 
 docs
-  必要时同步 VAULT_SPEC.md 和 EXTRACTED_SOURCE_SCHEMA.md。
+  同步 Vault、Extraction、Merge、产品和路线图。
 ```
 
-## 3. Source Manifest v0.2
-
-TypeScript 类型：
+## 3. TypeScript 类型
 
 ```ts
-export type SourceStatus =
+export type SourceProcessingStatus =
   | "registered"
   | "extracted"
-  | "merged"
-  | "archived"
-  | "deleted";
+  | "partially_merged"
+  | "merged";
+
+export type SourceLifecycleStatus = "active" | "archived" | "deleted";
+
+export type LegacySourceStatus = "registered";
 
 export type SourceManifestEntry = {
   sourceId: string;
@@ -52,51 +53,67 @@ export type SourceManifestEntry = {
   created: string;
   ingestedAt?: string;
   mtime?: string;
-  status: SourceStatus;
+  processingStatus?: SourceProcessingStatus;
+  lifecycleStatus?: SourceLifecycleStatus;
+  status?: LegacySourceStatus;
   privacy?: string;
   language?: string;
 };
+
+export type NormalizedSourceStatus = {
+  processingStatus: SourceProcessingStatus;
+  lifecycleStatus: SourceLifecycleStatus;
+  legacy: boolean;
+};
 ```
 
-说明：
+`SourceManifestEntry` 在兼容期允许 optional 状态字段。业务逻辑不能直接读取 optional 字段，应统一调用状态归一化函数。
 
-- `created` 暂时保留为当前兼容字段，语义等同首次登记时间。
-- `ingestedAt` 是更明确的摄入时间。
-- `mtime` 是原始输入文件在摄入时的修改时间。
-- `originalName` 来自输入文件 basename。
-- `sizeBytes` 来自输入文件 stat size。
+## 4. 状态归一化
 
-## 4. ingest 行为
-
-流程变化：
-
-1. 读取输入文件 stat。
-2. 计算 sha256。
-3. 按 checksum 查找已有 source。
-4. 如果复用，直接返回已有 entry，不更新 mtime/size。
-5. 如果新增，复制到 `raw/inbox/`。
-6. 写 Extracted Source 模板。
-7. 写 v0.2 source manifest entry。
-
-默认 options：
+建议新增：
 
 ```ts
-privacy: "private"
-language: "zh-CN"
+normalizeSourceStatus(entry): NormalizedSourceStatus
 ```
 
-CLI 可增加：
+规则：
 
-```bash
---privacy <privacy>
---language <language>
+1. 同时存在 `processingStatus` 和 `lifecycleStatus` 时使用新状态。
+2. 两个新字段都不存在，且 `status === "registered"` 时返回 registered + active，并标记 `legacy: true`。
+3. 只存在一个新字段时抛出 manifest error。
+4. 新双状态和 legacy status 同时存在时，允许兼容读取，但 legacy status 只能是 registered；如果新 processing status 不是 registered，则 validator 报冲突 error。
+5. 新 ingest 只写 `processingStatus` 和 `lifecycleStatus`，不写 legacy `status`。
+
+## 5. Ingest 行为
+
+```text
+1. 读取输入文件 stat。
+2. 计算 sha256。
+3. 按 checksum 查找已有 Source。
+4. 已存在时返回原 entry，不修改其 metadata 或状态。
+5. 新增时复制到 raw/inbox。
+6. 写入 v0.2 manifest entry。
+7. 创建正式 Extracted Source 模板。
 ```
 
-这两个参数不是高风险参数，可以在 0006 一并暴露。
+新 entry 字段：
 
-## 5. Extracted Source 模板
+- `originalName`：输入文件 basename。
+- `sizeBytes`：输入文件 `stat.size`。
+- `created`：首次登记时间。
+- `ingestedAt`：本次首次 ingest 时间，与 created 相同。
+- `mtime`：输入文件 `stat.mtime` 的 ISO 字符串。
+- `processingStatus`：registered。
+- `lifecycleStatus`：active。
+- `privacy`：CLI 参数或 private。
+- `language`：CLI 参数或 zh-CN。
 
-frontmatter：
+重复 checksum 复用旧 entry，因此不更新 mtime、size、privacy、language 或状态。Source revision 属于后续设计。
+
+## 6. Extracted Source 模板
+
+Frontmatter：
 
 ```yaml
 ---
@@ -104,14 +121,13 @@ source_id: src:...
 raw_path: raw/inbox/...
 type: chat
 domain: personal
-created: 2026-07-09T10:00:00+08:00
-status: registered
+created: 2026-07-28T10:00:00+08:00
+processing_status: registered
+lifecycle_status: active
 privacy: private
 language: zh-CN
 ---
 ```
-
-`status` 默认使用 `registered`，表示 source 已登记但尚未由 Agent 完成结构化提取。后续如果实现 extraction 命令，可以把状态推进到 `extracted`。
 
 标准章节：
 
@@ -147,99 +163,117 @@ language: zh-CN
 ## User Confirmation Needed
 ```
 
-`Source` 章节应预填：
+`Source` 章节预填 Source ID、Raw path、type、domain、privacy、language、processing status 和 lifecycle status。
 
-- Source ID。
-- Raw path。
-- Type。
-- Domain。
-- Privacy。
-- Language。
+模板中的状态是初始人类可读镜像。0006 不实现后续状态同步或 coverage finalize。
 
-## 6. validate 规则
+## 7. Validate 规则
 
-### 6.1 必需字段
+### 7.1 必需字段
 
-仍然 error：
+继续作为 error：
 
-- 缺少 `sourceId`
-- 缺少 `rawPath`
-- 缺少 `type`
-- 缺少 `domain`
-- 缺少 `checksum`
-- 缺少 `status`
-- manifest key 与 `sourceId` 不一致
+- 缺少 `sourceId`。
+- 缺少 `rawPath`。
+- 缺少 `type`。
+- 缺少 `domain`。
+- 缺少 `checksum`。
+- manifest key 与 `sourceId` 不一致。
+- 新旧状态均不可归一化。
 
-### 6.2 status 枚举
+### 7.2 Processing Status
 
 合法值：
 
 ```text
 registered
 extracted
+partially_merged
 merged
+```
+
+非法值：`INVALID_SOURCE_PROCESSING_STATUS`。
+
+### 7.3 Lifecycle Status
+
+合法值：
+
+```text
+active
 archived
 deleted
 ```
 
-非法值报 error：`INVALID_SOURCE_STATUS`。
+非法值：`INVALID_SOURCE_LIFECYCLE_STATUS`。
 
-### 6.3 raw 文件缺失
+### 7.4 Raw 文件存在状态
 
-- `status !== "deleted"` 且 raw 文件缺失：warning `RAW_SOURCE_MISSING`。
-- `status === "deleted"` 且 raw 文件缺失：不报 warning。
-- `status === "deleted"` 且 raw 文件仍存在：warning `DELETED_SOURCE_FILE_EXISTS`，提示状态和文件不一致。
+- lifecycle 不是 deleted 且 Raw 文件缺失：warning `RAW_SOURCE_MISSING`。
+- lifecycle 是 deleted 且 Raw 文件缺失：不报 missing warning。
+- lifecycle 是 deleted 但 Raw 文件存在：warning `DELETED_SOURCE_FILE_EXISTS`。
+- lifecycle 是 archived 时仍检查文件完整性。
 
-### 6.4 extracted 文件缺失
+### 7.5 Checksum 与 Size
 
-不论 status 是否 deleted，`extractedPath` 缺失都可以继续 warning。
+Raw 文件存在时：
 
-理由：Raw Source 被删不等于 Extracted Source 记录应消失。Extracted Source 可能是唯一剩余审计材料。
+- checksum 不一致：warning `RAW_SOURCE_CHECKSUM_MISMATCH`。
+- `sizeBytes` 存在且不一致：warning `RAW_SOURCE_SIZE_MISMATCH`。
+- 旧 entry 缺少 `sizeBytes`：跳过 size 检查。
 
-### 6.5 checksum 检查
+### 7.6 Extracted 文件
 
-当 raw 文件存在且 `checksum` 是字符串：
+`extractedPath` 缺失继续报告 warning。Raw Source deleted 不代表 Extracted Source 应被删除。
 
-- 重新计算 sha256。
-- 不一致时 warning `RAW_SOURCE_CHECKSUM_MISMATCH`。
+### 7.7 Legacy Entry
 
-### 6.6 size 检查
+- `status: registered` 且无新状态：合法 legacy entry。
+- 新状态只出现一个字段：error `INCOMPLETE_SOURCE_STATUS`。
+- legacy status 非 registered：error `INVALID_LEGACY_SOURCE_STATUS`。
+- 新双状态与 legacy status 冲突：error `CONFLICTING_SOURCE_STATUS`。
 
-当 raw 文件存在且 `sizeBytes` 是 number：
+## 8. CLI
 
-- 比较 `stat.size`。
-- 不一致时 warning `RAW_SOURCE_SIZE_MISMATCH`。
+```bash
+pkwiki ingest <file> \
+  --type <type> \
+  --domain <domain> \
+  [--privacy <privacy>] \
+  [--language <language>] \
+  [--json]
+```
 
-如果 `sizeBytes` 缺失，不报错，保持兼容。
+参数必须是非空字符串。0006 不冻结 privacy 和 language 枚举，由 Vault policy 在后续阶段约束。
 
-## 7. 测试设计
+## 9. 测试设计
 
-### 7.1 core
+### 9.1 Core
 
-- `ingestSource` 写入 v0.2 字段。
-- `ingestSource` 默认 privacy/language。
-- `ingestSource` 支持 options privacy/language。
-- 重复 ingest 继续复用 checksum。
-- Extracted Source 模板包含正式章节。
+- 新 ingest 写入 v0.2 metadata 和双状态。
+- privacy/language 默认值与显式参数。
+- 重复 checksum 复用旧 entry。
+- legacy status 归一化。
+- 不完整和冲突状态拒绝。
+- Extracted Source 模板包含正式 frontmatter 和章节。
 
-### 7.2 validator
+### 9.2 Validator
 
-- 非法 status 报 error。
-- `deleted` + raw missing 不报 `RAW_SOURCE_MISSING`。
-- 非 deleted + raw missing 报 warning。
-- `deleted` + raw exists 报 warning。
-- checksum mismatch 报 warning。
-- size mismatch 报 warning。
-- 老 manifest 缺少 v0.2 可选字段不报 error。
+- Processing Status 和 Lifecycle Status 非法值。
+- active、archived、deleted 与 Raw 文件存在状态。
+- checksum 和 size mismatch。
+- legacy entry 兼容。
+- 新旧状态冲突。
 
-### 7.3 cli
+### 9.3 CLI
 
-- `pkwiki ingest --json` 输出新增字段。
-- 如果暴露 `--privacy`、`--language`，测试参数生效。
+- JSON 输出包含 v0.2 字段。
+- privacy 和 language 参数生效。
+- 空参数被拒绝。
 
-## 8. 风险与取舍
+## 10. 风险与取舍
 
-- 增加 manifest 字段会让 diff 变大，但对 Agent 判断更有价值。
-- validate checksum 会增加少量 IO，MVP 可接受。
-- `deleted` 语义先由手动编辑 manifest 表达，不急于做命令。
-- Extracted Source 模板变长，但这是为 Agent merge 准备的必要结构。
+- 双状态增加字段数量，但避免后续无法表达真实 Source 生命周期。
+- optional 类型服务兼容，业务逻辑必须通过 normalize 函数消除不确定性。
+- validate checksum 增加少量 IO，MVP 可接受。
+- 0006 不做自动 migration，避免在基础契约尚未 dogfood 时批量改写私密 Vault。
+- Extracted Source 模板比 MVP 更长，但这只是后续 workflow 的稳定入口，不代表 extraction 已实现。

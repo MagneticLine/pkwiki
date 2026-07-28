@@ -1,10 +1,11 @@
 # 摄入规则
 
-1. 为每个 Raw Source 注册稳定的 `source_id`。
-2. 原始文件保留在 `raw/` 下。
-3. 将 source 内容归一化到 `extracted/`。
-4. 大 source 在交给 Agent 前先分块。
-5. 只更新受影响的 Wiki Page。
-6. 优先使用 section 级 patch。
-7. 查看 diff 前先校验。
-
+1. 为每个 Raw Source 注册稳定 Source ID。
+2. 保留 Raw Source 原始内容和 checksum。
+3. 在 Extracted Source 中完成 normalize、chunk、extraction 和 uncertainty 记录。
+4. 为重要 Information Item 分配稳定 Item ID，并保留 evidence。
+5. 先搜索和读取少量 Candidate Wiki Page，再生成 MergePlan。
+6. 每个重要 Item 必须进入 Merge Coverage。
+7. 优先使用 section 级 PatchPlan，避免无关改写。
+8. 应用后运行 validate、index 和 diff。
+9. Human Maintainer 审查后再决定 commit 和 push。

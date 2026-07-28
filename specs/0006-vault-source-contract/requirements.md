@@ -2,130 +2,142 @@
 
 ## 1. 背景
 
-0001 到 0005 已经完成 `pkwiki` 的确定性 CLI 核心：初始化、状态读取、校验、摄入、索引、受控 Patch 和 Git diff 审查。
+0001 到 0005 已完成初始化、状态读取、校验、非 LLM ingest、索引、PatchPlan 和 Git diff review。
 
-随后我们补充了 Vault Spec、Extracted Source Schema、Source-to-Wiki Merge 和页面类型设计。现在这些设计还主要停留在文档层，运行时代码仍是 MVP 契约：
+当前运行时 Source 契约仍是 MVP：
 
-- Source Manifest 只记录少量字段。
-- Source status 只有 `registered`。
-- `ingest` 生成的 Extracted Source 模板仍是早期简版。
-- validate 只检查 source manifest 必需字段和文件存在，不检查 raw checksum、size、status 枚举等。
-- `deleted` source status 已在文档中定义，但未落地到类型和校验。
+- Source Manifest metadata 较少。
+- 单一 `status: registered` 无法表达后续 processing 和 lifecycle。
+- Extracted Source 模板与正式设计不一致。
+- validate 不检查 Raw Source checksum、size 和状态枚举。
+- 文档曾把 registered、merged、archived 和 deleted 放进同一状态维度，无法表达“已经 merged，但 Raw 文件后来 deleted”的真实情况。
 
-0006 的目标是把 Vault/Source 契约落到代码里，为后续 Source-to-Wiki Merge 和 Agent 集成铺路。
+0006 负责修正并落地 Vault/Source 基础契约，为 0007 Extraction/Chunk、0008 MergePlan/Coverage 和 Agent Harness 提供稳定输入。
 
 ## 2. 目标
 
 ### 2.1 产品目标
 
-- Raw Source 登记记录更完整，便于追溯、审查和后续 Agent 判断。
-- Source status 支持生命周期推进，尤其允许 `deleted` 表达 Raw Source 已缺失但记录仍保留。
-- Extracted Source 模板对齐正式 schema，让 Agent 在合并前有固定填写位置。
-- validate 能发现 source manifest 和 raw 文件之间的关键不一致。
-- 保持与现有 Vault 的向后兼容，不让老的 source manifest 立即报错失效。
+- Source Manifest 保留足够的来源、完整性、隐私和语言 metadata。
+- Source Processing Status 与 Source Lifecycle Status 相互独立。
+- Raw Source 删除后保留 Source ID、历史引用和审计线索。
+- Extracted Source 模板对齐正式人类可读结构。
+- validate 能发现 manifest 与 Raw Source 的关键不一致。
+- 现有 Vault 不因新字段立即失效。
 
 ### 2.2 工程目标
 
-- 扩展 `SourceStatus` 类型。
-- 扩展 `SourceManifestEntry` 字段。
-- 更新 `pkwiki ingest` 写入完整 source metadata。
+- 扩展 `SourceManifestEntry`。
+- 新增 `SourceProcessingStatus` 和 `SourceLifecycleStatus`。
+- 新 ingest 写入 Source Manifest v0.2 字段。
+- CLI 明确支持 `--privacy` 和 `--language`。
 - 更新 Extracted Source 模板。
-- 更新 validate 的 source manifest 检查。
-- 更新默认 Vault 文档和模板。
-- 为新字段、deleted status、checksum/size 检查补测试。
-- 保持 `pnpm build`、`pnpm test`、`pnpm lint` 通过。
+- 更新 source manifest validate。
+- 同步默认 Vault 文档和测试。
 
 ## 3. 用户故事
 
-### 3.1 Source manifest 保留更多元数据
+### 3.1 保留来源 metadata
 
-作为 Agent，我希望读取 `.pkwiki/source_manifest.json` 时能知道 source 的原始文件名、大小、mtime、隐私级别和语言，避免只靠路径和 checksum 判断素材。
+作为 Agent，我希望读取 Source Manifest 时能知道原始文件名、大小、mtime、摄入时间、隐私和语言，避免只靠路径和 checksum 理解素材。
 
 验收：
 
-- 新 ingest 的 manifest entry 包含 `originalName`、`sizeBytes`、`ingestedAt`、`mtime`、`privacy`、`language`。
+- 新 entry 包含 `originalName`、`sizeBytes`、`ingestedAt`、`mtime`、`privacy` 和 `language`。
 - `checksum` 继续使用 `sha256:...`。
-- `created` 保留，作为兼容字段。
-- `--json` 输出包含新增字段。
+- `created` 保留，语义为首次登记时间。
+- `pkwiki ingest --json` 返回新增字段。
 
-### 3.2 Raw Source 缺失时允许标记 deleted
+### 3.2 独立表达处理进度和生命周期
 
-作为 Human Maintainer，我可能会手动删除某个 raw 文件。我希望 source 记录不要被直接删除，而是能被标记为 `deleted`。
-
-验收：
-
-- `SourceStatus` 支持 `registered`、`extracted`、`merged`、`archived`、`deleted`。
-- validate 遇到 `status: deleted` 且 raw 文件不存在时，不报 `RAW_SOURCE_MISSING` warning。
-- validate 遇到非 deleted source 且 raw 文件不存在时，继续报 warning。
-- validate 遇到非法 status 报 error。
-
-### 3.3 validate 检查 raw checksum 和 size
-
-作为维护者，我希望如果 raw 文件被手动改写，validate 能提示 manifest 与文件不一致。
+作为 Human Maintainer，我希望一份已经 merge 的 Source 在 Raw 文件删除后仍能同时表达过去已处理和现在已删除。
 
 验收：
 
-- 对存在的 raw 文件，validate 重新计算 sha256。
+- Processing Status 支持 `registered`、`extracted`、`partially_merged` 和 `merged`。
+- Lifecycle Status 支持 `active`、`archived` 和 `deleted`。
+- 新 ingest 默认 `processingStatus: registered`。
+- 新 ingest 默认 `lifecycleStatus: active`。
+- validate 分别校验两个枚举。
+
+### 3.3 Raw Source 完整性检查
+
+作为 Human Maintainer，我希望 Raw 文件被手动改写或异常缺失时，validate 能提示 manifest 与文件不一致。
+
+验收：
+
+- Raw 文件存在时重新计算 sha256。
 - checksum 不一致时报 warning。
 - `sizeBytes` 不一致时报 warning。
-- 老 manifest 没有 `sizeBytes` 时不报错，只跳过 size 检查。
+- 非 deleted Source 缺失 Raw 文件时报 warning。
+- deleted Source 缺失 Raw 文件不报 missing warning。
+- deleted Source 的 Raw 文件仍存在时报状态不一致 warning。
 
-### 3.4 Extracted Source 模板对齐正式 schema
+### 3.4 Extracted Source 模板
 
-作为 Agent，我希望 `pkwiki ingest` 生成的 extracted 模板已经包含正式章节，便于后续填写 facts、events、candidate targets 和 merge coverage。
+作为 Agent，我希望 ingest 生成的模板具有正式章节和 Source metadata，便于后续 extraction 和 merge。
 
 验收：
 
-- 新模板包含 `Source`、`Normalized Content`、`Summary`、`Facts`、`Events`、`Entities`、`Decisions`、`Questions`、`Uncertainty`、`Candidate Wiki Targets`、`Merge Coverage`、`Deferred`、`Discarded`、`User Confirmation Needed`。
-- frontmatter 使用 `source_id`、`raw_path`、`type`、`domain`、`created`、`status`、`privacy`、`language`。
-- 默认 `status` 为 `registered` 或 `extracted` 需要在设计中明确。
+- Frontmatter 包含 `source_id`、`raw_path`、`type`、`domain`、`created`、`processing_status`、`lifecycle_status`、`privacy` 和 `language`。
+- 默认状态是 registered 和 active。
+- 模板包含 Source、Normalized Content、Summary、Facts、Events、Entities、Decisions、Questions、Uncertainty、Candidate Wiki Targets、Merge Coverage、Deferred、Discarded 和 User Confirmation Needed。
+- Source 章节预填基本 metadata。
 
-## 4. 功能范围
+### 3.5 向后兼容
 
-### 4.1 Source Manifest v0.2
+作为已有 Vault 维护者，我希望旧 manifest 的 `status: registered` 仍然可读。
 
-新 ingest 应写入：
+验收：
+
+- 旧 entry 缺少 v0.2 metadata 时不报 error。
+- 旧 `status: registered` 被解释为 registered + active。
+- 旧 `status` 缺失且新双状态也缺失时报 error。
+- 新写入不继续使用单一 `status` 作为权威字段。
+
+## 4. Source Manifest v0.2
+
+新 entry：
 
 ```json
 {
-  "sourceId": "src:2026-07-09-example",
+  "sourceId": "src:2026-07-28-example",
   "originalPath": "/absolute/input/example.md",
   "originalName": "example.md",
-  "rawPath": "raw/inbox/2026-07-09-example.md",
-  "extractedPath": "extracted/sources/src-2026-07-09-example.md",
+  "rawPath": "raw/inbox/2026-07-28-example.md",
+  "extractedPath": "extracted/sources/src-2026-07-28-example.md",
   "type": "chat",
   "domain": "personal",
   "checksum": "sha256:...",
   "sizeBytes": 12345,
-  "created": "2026-07-09T10:00:00+08:00",
-  "ingestedAt": "2026-07-09T10:00:00+08:00",
-  "mtime": "2026-07-09T09:59:00+08:00",
-  "status": "registered",
+  "created": "2026-07-28T10:00:00+08:00",
+  "ingestedAt": "2026-07-28T10:00:00+08:00",
+  "mtime": "2026-07-28T09:59:00+08:00",
+  "processingStatus": "registered",
+  "lifecycleStatus": "active",
   "privacy": "private",
   "language": "zh-CN"
 }
 ```
 
-### 4.2 默认参数
+CLI：
 
-`pkwiki ingest` MVP 不强制增加 CLI 参数。
+```bash
+pkwiki ingest <file> \
+  --type <type> \
+  --domain <domain> \
+  --privacy <privacy> \
+  --language <language>
+```
 
 默认值：
 
 - `privacy`: `private`
 - `language`: `zh-CN`
 
-后续可以增加：
+## 5. 兼容规则
 
-```bash
-pkwiki ingest <file> --type <type> --domain <domain> --privacy private --language zh-CN
-```
-
-0006 可以先在 core 层支持 options，在 CLI 层是否暴露视实现复杂度决定。
-
-### 4.3 向后兼容
-
-老 manifest entry 允许缺少：
+允许旧 entry 缺少：
 
 - `originalName`
 - `sizeBytes`
@@ -133,38 +145,41 @@ pkwiki ingest <file> --type <type> --domain <domain> --privacy private --languag
 - `mtime`
 - `privacy`
 - `language`
+- `processingStatus`
+- `lifecycleStatus`
 
-validate 对这些字段可以 warning 或跳过，但不应 error。
+旧 entry 必须具有合法 `status: registered` 才能使用 legacy fallback。
 
-必需字段仍是：
+以下情况报 error：
 
-- `sourceId`
-- `rawPath`
-- `type`
-- `domain`
-- `checksum`
-- `status`
+- 新旧状态字段全部缺失。
+- 只有 `processingStatus` 或只有 `lifecycleStatus`。
+- 新双状态与 legacy `status` 同时存在且语义冲突。
+- 非法 Processing Status。
+- 非法 Lifecycle Status。
 
-### 4.4 非目标
+0006 不自动迁移已有 manifest。后续 schema migration 阶段再提供批量迁移命令。
 
-- 不实现真正 LLM extraction。
-- 不实现 MergePlan 命令。
-- 不实现 `pkwiki source delete` 或 `pkwiki source status` 命令。
-- 不迁移已有 vault 的 source manifest。
-- 不做数据库索引。
-- 不做 MCP 或 Web UI。
+## 6. 非目标
 
-## 5. 验收标准
+- 不实现 LLM extraction。
+- 不实现 Chunk Manifest 正式字段。
+- 不实现 MergePlan 或 Merge Coverage 命令。
+- 不实现 processing status 自动推进。
+- 不实现 source lifecycle 修改命令。
+- 不实现 Source revision。
+- 不实现 `.pkwiki/runs/`。
+- 不实现 MCP、HTTP 或 Web UI。
 
-- 新 ingest 的 source manifest 包含 v0.2 字段。
-- 重复 ingest 仍按 checksum 去重。
-- validate 能识别非法 source status。
-- validate 对 `deleted` source 缺失 raw 文件不报 raw missing warning。
-- validate 对非 deleted source 缺失 raw 文件仍报 warning。
-- validate 能提示 raw checksum mismatch。
-- validate 能提示 raw size mismatch。
-- Extracted Source 模板对齐正式章节。
-- 文档和模板同步更新。
-- `pnpm build` 通过。
-- `pnpm test` 通过。
-- `pnpm lint` 通过。
+## 7. 验收标准
+
+- 新 ingest 写入 Source Manifest v0.2。
+- 重复 ingest 继续按 checksum 去重。
+- privacy 和 language CLI 参数生效。
+- validate 分别校验 processing 和 lifecycle status。
+- validate 正确处理 active、archived、deleted 与 Raw 文件存在状态。
+- validate 能提示 checksum 和 size mismatch。
+- legacy manifest 保持可读。
+- Extracted Source 模板与正式章节一致。
+- 默认 Vault 规则与产品文档一致。
+- `pnpm build`、`pnpm test`、`pnpm lint` 和 `pnpm -r lint` 通过。
