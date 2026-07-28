@@ -36,6 +36,13 @@ import {
   PatchPlanError,
   applyPatchPlan,
 } from "@pkwiki/patch";
+import {
+  SearchError,
+  buildContextPack,
+  listPages,
+  readWikiPage,
+  searchPages,
+} from "@pkwiki/search";
 import { validateVault } from "@pkwiki/validator";
 
 type ParsedArgs = {
@@ -52,6 +59,7 @@ type ParsedArgs = {
   privacy?: string;
   language?: string;
   maxChars?: string;
+  limit?: string;
 };
 
 type StatusResult = {
@@ -140,6 +148,30 @@ function main(argv: string[]): void {
       process.exit(0);
     }
 
+    if (args.command === "list-pages") {
+      const result = listPages(process.cwd());
+      writeOutput(args.json, result, formatListPagesResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "read-page") {
+      const result = runReadPage(args);
+      writeOutput(args.json, result, formatReadPageResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "search") {
+      const result = runSearch(args);
+      writeOutput(args.json, result, formatSearchResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "build-context") {
+      const result = runBuildContext(args);
+      writeOutput(args.json, result, formatBuildContextResult(result));
+      process.exit(0);
+    }
+
     if (args.command === "index") {
       const result = generateIndex(args.path ?? process.cwd());
       writeOutput(args.json, result, formatIndexResult(result));
@@ -168,6 +200,7 @@ function main(argv: string[]): void {
       const sourceContractError =
         error instanceof SourceContractError ? error : null;
       const mergePlanError = error instanceof MergePlanError ? error : null;
+      const searchError = error instanceof SearchError ? error : null;
       console.log(
         JSON.stringify(
           {
@@ -176,7 +209,8 @@ function main(argv: string[]): void {
               patchError?.code ??
               gitDiffError?.code ??
               sourceContractError?.code ??
-              mergePlanError?.code,
+              mergePlanError?.code ??
+              searchError?.code,
             message,
             error: message,
             path: patchError?.path,
@@ -204,6 +238,9 @@ function main(argv: string[]): void {
     if (error instanceof MergePlanError) {
       process.exit(error.exitCode);
     }
+    if (error instanceof SearchError) {
+      process.exit(error.exitCode);
+    }
     process.exit(2);
   }
 }
@@ -218,6 +255,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     "--privacy",
     "--language",
     "--max-chars",
+    "--limit",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -259,6 +297,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     privacy: getStringFlag(flags, "--privacy"),
     language: getStringFlag(flags, "--language"),
     maxChars: getStringFlag(flags, "--max-chars"),
+    limit: getStringFlag(flags, "--limit"),
   };
 }
 
@@ -413,6 +452,34 @@ function runFinalizeMerge(args: ParsedArgs): ReturnType<typeof finalizeMerge> {
   return finalizeMerge(process.cwd(), args.path);
 }
 
+function runReadPage(args: ParsedArgs): ReturnType<typeof readWikiPage> {
+  if (!args.path) {
+    throw new CliError("pkwiki read-page 需要 Wiki Page 路径", 2);
+  }
+  return readWikiPage(process.cwd(), args.path);
+}
+
+function runSearch(args: ParsedArgs): ReturnType<typeof searchPages> {
+  if (!args.path) {
+    throw new CliError("pkwiki search 需要 query", 2);
+  }
+  let limit: number | undefined;
+  if (args.limit !== undefined) {
+    if (args.limit === "") {
+      throw new CliError("pkwiki search 的 --limit 不能为空", 2);
+    }
+    limit = Number(args.limit);
+  }
+  return searchPages(process.cwd(), args.path, { limit });
+}
+
+function runBuildContext(args: ParsedArgs): ReturnType<typeof buildContextPack> {
+  if (!args.path) {
+    throw new CliError("pkwiki build-context 需要 request.json 路径", 2);
+  }
+  return buildContextPack(process.cwd(), args.path);
+}
+
 function runDiff(args: ParsedArgs): ReturnType<typeof getGitDiffSummary> {
   const vault = loadVault(process.cwd());
   return getGitDiffSummary(vault.root, {
@@ -539,6 +606,53 @@ function formatFinalizeMergeResult(
   ].join("\n");
 }
 
+function formatListPagesResult(result: ReturnType<typeof listPages>): string {
+  const lines = [`Vault: ${result.vaultRoot}`, `Pages: ${result.pages.length}`];
+  for (const page of result.pages) {
+    lines.push(`  ${page.id} -> ${page.path} (${page.metadata.title})`);
+  }
+  return lines.join("\n");
+}
+
+function formatReadPageResult(result: ReturnType<typeof readWikiPage>): string {
+  return [
+    `Page: ${result.id}`,
+    `Path: ${result.path}`,
+    `Checksum: ${result.checksum}`,
+    "",
+    result.content,
+  ].join("\n");
+}
+
+function formatSearchResult(result: ReturnType<typeof searchPages>): string {
+  const lines = [
+    `Query: ${result.query}`,
+    `Results: ${result.results.length}/${result.total}`,
+  ];
+  for (const entry of result.results) {
+    lines.push(
+      `  [${entry.score}] ${entry.id} -> ${entry.path}`,
+      `    matched: ${entry.matchedFields.join(", ")}`,
+      `    ${entry.excerpt}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+function formatBuildContextResult(
+  result: ReturnType<typeof buildContextPack>,
+): string {
+  return [
+    `Run: ${result.contextPack.runId}`,
+    `Workflow: ${result.contextPack.workflow}`,
+    `Context Pack: ${result.contextPackPath}`,
+    `Sources: ${result.contextPack.sources.length}`,
+    `Pages: ${result.contextPack.budget.usedPages}/${result.contextPack.budget.maxPages}`,
+    `Page chars: ${result.contextPack.budget.usedChars}/${result.contextPack.budget.maxChars}`,
+    `Omitted: ${result.contextPack.omitted.length}`,
+  ].join("\n");
+}
+
 function formatApplyPatchResult(result: ApplyPatchCliResult): string {
   const lines = [
     `Vault: ${result.vaultRoot}`,
@@ -650,6 +764,10 @@ function printHelp(): void {
       "  pkwiki register-extraction <artifact.json> [--json]",
       "  pkwiki register-merge-plan <plan.json> [--json]",
       "  pkwiki finalize-merge <run-id> [--json]",
+      "  pkwiki list-pages [--json]",
+      "  pkwiki read-page <wiki-path> [--json]",
+      "  pkwiki search <query> [--limit <number>] [--json]",
+      "  pkwiki build-context <request.json> [--json]",
       "  pkwiki index [path] [--json]",
       "  pkwiki apply-patch <plan> [--dry-run] [--json]",
       "  pkwiki diff [path] [--name-only] [--json]",

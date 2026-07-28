@@ -50,6 +50,9 @@ importers:
       '@pkwiki/patch':
         specifier: workspace:*
         version: link:../patch
+      '@pkwiki/search':
+        specifier: workspace:*
+        version: link:../search
       '@pkwiki/validator':
         specifier: workspace:*
         version: link:../validator
@@ -92,6 +95,18 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/search:
+    dependencies:
+      '@pkwiki/core':
+        specifier: workspace:*
+        version: link:../core
+      '@pkwiki/indexer':
+        specifier: workspace:*
+        version: link:../indexer
+      '@pkwiki/merge':
+        specifier: workspace:*
+        version: link:../merge
+
   packages/validator:
     dependencies:
       '@pkwiki/core':
@@ -103,6 +118,9 @@ importers:
       '@pkwiki/merge':
         specifier: workspace:*
         version: link:../merge
+      '@pkwiki/search':
+        specifier: workspace:*
+        version: link:../search
       yaml:
         specifier: ^2.6.1
         version: 2.9.0

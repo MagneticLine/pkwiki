@@ -1,9 +1,12 @@
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -262,7 +265,8 @@ export function registerMergePlan(
 
   const runDirectory = getRunDirectory(plan.runId);
   const absoluteRunDirectory = join(vault.root, runDirectory);
-  if (existsSync(absoluteRunDirectory)) {
+  const contextOnlyRun = isContextOnlyRunDirectory(absoluteRunDirectory);
+  if (existsSync(absoluteRunDirectory) && !contextOnlyRun) {
     throw new MergePlanError(
       "RUN_ALREADY_EXISTS",
       `Run 已存在：${plan.runId}`,
@@ -271,7 +275,14 @@ export function registerMergePlan(
 
   const temporaryDirectory = `${absoluteRunDirectory}.tmp-${process.pid}-${Date.now()}`;
   mkdirSync(temporaryDirectory, { recursive: true });
+  const backupDirectory = `${absoluteRunDirectory}.backup-${process.pid}-${Date.now()}`;
   try {
+    if (contextOnlyRun) {
+      copyFileSync(
+        join(absoluteRunDirectory, "context-pack.json"),
+        join(temporaryDirectory, "context-pack.json"),
+      );
+    }
     writeJson(join(temporaryDirectory, "merge-plan.json"), plan);
     writeJson(join(temporaryDirectory, "run.json"), {
       version: RUN_RECORD_VERSION,
@@ -282,9 +293,23 @@ export function registerMergePlan(
       updatedAt: plan.createdAt,
     } satisfies RunRecord);
     mkdirSync(dirname(absoluteRunDirectory), { recursive: true });
+    if (contextOnlyRun) {
+      renameSync(absoluteRunDirectory, backupDirectory);
+    }
     renameSync(temporaryDirectory, absoluteRunDirectory);
+    rmSync(backupDirectory, { recursive: true, force: true });
+  } catch (error) {
+    if (
+      contextOnlyRun &&
+      !existsSync(absoluteRunDirectory) &&
+      existsSync(backupDirectory)
+    ) {
+      renameSync(backupDirectory, absoluteRunDirectory);
+    }
+    throw error;
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
+    rmSync(backupDirectory, { recursive: true, force: true });
   }
 
   return {
@@ -403,6 +428,18 @@ export function getRunDirectory(runId: string): string {
     throw invalidPlan("runId 非法");
   }
   return join(".pkwiki", "runs", runId.replace(/:/g, "-"));
+}
+
+function isContextOnlyRunDirectory(path: string): boolean {
+  if (!existsSync(path) || !statSync(path).isDirectory()) {
+    return false;
+  }
+  const entries = readdirSync(path, { withFileTypes: true });
+  return (
+    entries.length === 1 &&
+    entries[0]?.isFile() === true &&
+    entries[0]?.name === "context-pack.json"
+  );
 }
 
 function validatePlanAgainstVault(vaultRoot: string, plan: MergePlan): ValidatedPlan {

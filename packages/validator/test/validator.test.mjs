@@ -16,6 +16,7 @@ import {
   ingestSource,
   registerExtraction,
 } from "../../core/dist/index.js";
+import { buildContextPack } from "../../search/dist/index.js";
 import { validateVault } from "../dist/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -579,5 +580,155 @@ test("page manifest checksum 过期时报 warning", () => {
   assert.equal(result.errors.length, 0);
   assert.ok(
     result.warnings.some((issue) => issue.code === "PAGE_MANIFEST_STALE_CHECKSUM"),
+  );
+});
+
+test("query Context Pack 可独立校验，页面变化时报 stale warning", () => {
+  const root = copyTemplate();
+  mkdirSync(join(root, "wiki/knowledge"), { recursive: true });
+  const pagePath = join(root, "wiki/knowledge/context.md");
+  const pageContent = [
+    "---",
+    'okf_version: "0.1"',
+    "profile: pkwiki/0.1",
+    "id: knowledge/context",
+    "type: Concept",
+    "title: Context Pack",
+    "description: Context Pack validation.",
+    "domain: knowledge",
+    "status: active",
+    "created: 2026-07-28",
+    "updated: 2026-07-28",
+    "confidence: high",
+    "privacy: private",
+    "sources: [src:context-fixture]",
+    "tags: [context]",
+    "---",
+    "",
+    "# Context Pack",
+    "",
+    "Stable context content.",
+  ].join("\n");
+  writeFileSync(pagePath, pageContent);
+  buildContextPack(
+    root,
+    {
+      version: "pkwiki.context-request/0.1",
+      runId: "run:validator-context",
+      workflow: "query",
+      query: "Context Pack",
+      sourceIds: [],
+      maxPages: 2,
+      maxChars: 2000,
+      linkDepth: 0,
+    },
+    { now: new Date("2026-07-28T16:00:00+08:00") },
+  );
+  buildContextPack(
+    root,
+    {
+      version: "pkwiki.context-request/0.1",
+      runId: "run:validator-merge-context",
+      workflow: "merge",
+      query: "Context Pack",
+      sourceIds: [],
+      maxPages: 2,
+      maxChars: 2000,
+      linkDepth: 0,
+    },
+    { now: new Date("2026-07-28T16:00:00+08:00") },
+  );
+
+  const valid = validateVault(root);
+  assert.equal(valid.errors.length, 0);
+  writeFileSync(pagePath, `${pageContent}\n\nChanged after context build.\n`);
+  const stale = validateVault(root);
+  assert.ok(
+    stale.warnings.some((issue) => issue.code === "CONTEXT_PAGE_CHECKSUM_STALE"),
+  );
+});
+
+test("Context Pack 引用未登记 Source 时报 error", () => {
+  const root = copyTemplate();
+  const sourceId = "src:validator-context";
+  writeFileSync(
+    join(root, ".pkwiki/source_manifest.json"),
+    JSON.stringify({
+      [sourceId]: {
+        sourceId,
+        originalPath: "/tmp/context.md",
+        rawPath: "raw/inbox/context.md",
+        extractedPath: "extracted/sources/context.md",
+        type: "document",
+        domain: "knowledge",
+        checksum: "sha256:context",
+        created: "2026-07-28",
+        processingStatus: "registered",
+        lifecycleStatus: "active",
+      },
+    }),
+  );
+  buildContextPack(root, {
+    version: "pkwiki.context-request/0.1",
+    runId: "run:validator-context-source",
+    workflow: "query",
+    query: "no matching page",
+    sourceIds: [sourceId],
+    maxPages: 1,
+    maxChars: 1000,
+    linkDepth: 0,
+  });
+  writeFileSync(join(root, ".pkwiki/source_manifest.json"), "{}\n");
+
+  const result = validateVault(root);
+  assert.ok(
+    result.errors.some((issue) => issue.code === "CONTEXT_SOURCE_NOT_FOUND"),
+  );
+});
+
+test("Context Pack 非法 Page 路径时报 error", () => {
+  const root = copyTemplate();
+  mkdirSync(join(root, "wiki/knowledge"), { recursive: true });
+  writeFileSync(
+    join(root, "wiki/knowledge/path.md"),
+    [
+      "---",
+      'okf_version: "0.1"',
+      "profile: pkwiki/0.1",
+      "id: knowledge/path",
+      "type: Concept",
+      "title: Context Path",
+      "description: Context path validation.",
+      "domain: knowledge",
+      "status: active",
+      "created: 2026-07-28",
+      "updated: 2026-07-28",
+      "confidence: high",
+      "privacy: private",
+      "sources: [src:path-fixture]",
+      "tags: [context]",
+      "---",
+      "",
+      "# Context Path",
+    ].join("\n"),
+  );
+  const built = buildContextPack(root, {
+    version: "pkwiki.context-request/0.1",
+    runId: "run:validator-context-path",
+    workflow: "query",
+    query: "Context Path",
+    sourceIds: [],
+    maxPages: 1,
+    maxChars: 1000,
+    linkDepth: 0,
+  });
+  const contextPath = join(root, built.contextPackPath);
+  const contextPack = JSON.parse(readFileSync(contextPath, "utf8"));
+  contextPack.pages[0].path = "../outside.md";
+  writeFileSync(contextPath, JSON.stringify(contextPack));
+
+  const result = validateVault(root);
+  assert.ok(
+    result.errors.some((issue) => issue.code === "CONTEXT_PAGE_PATH_INVALID"),
   );
 });

@@ -158,6 +158,40 @@ test("registerMergePlan 校验 coverage 完整性", () => {
   });
 });
 
+test("registerMergePlan 保留前置 Context Pack", () => {
+  const { root, source } = createPreparedVault(["fact"]);
+  const runId = "run:context-first";
+  const runDirectory = join(root, ".pkwiki/runs/run-context-first");
+  mkdirSync(runDirectory, { recursive: true });
+  writeFileSync(
+    join(runDirectory, "context-pack.json"),
+    JSON.stringify({ version: "pkwiki.context-pack/0.1", runId }),
+  );
+  const planPath = join(root, "context-first-plan.json");
+  writeFileSync(
+    planPath,
+    JSON.stringify(
+      buildPlan(
+        source.sourceId,
+        [
+          {
+            sourceId: source.sourceId,
+            itemId: "fact:f1",
+            decision: "discarded",
+            reason: "测试取舍",
+          },
+        ],
+        runId,
+      ),
+    ),
+  );
+
+  registerMergePlan(root, planPath);
+  assert.equal(existsSync(join(runDirectory, "context-pack.json")), true);
+  assert.equal(existsSync(join(runDirectory, "merge-plan.json")), true);
+  assert.equal(existsSync(join(runDirectory, "run.json")), true);
+});
+
 test("registerMergePlan 拒绝重复和未知 coverage", () => {
   const { root, source } = createPreparedVault(["fact"]);
   const duplicatePath = join(root, "duplicate.json");

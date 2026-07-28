@@ -384,6 +384,102 @@ test("index 支持 JSON 输出", () => {
   assert.equal(result.indexPath, "outputs/index.json");
 });
 
+test("list/read/search/build-context 支持 JSON 输出", () => {
+  const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-search-"));
+  const vault = join(parent, "vault");
+  const requestPath = join(parent, "context-request.json");
+  run(["init", vault, "--json"]);
+  const pageDirectory = join(vault, "wiki/knowledge");
+  mkdirSync(pageDirectory, { recursive: true });
+  writeFileSync(
+    join(pageDirectory, "alpha.md"),
+    [
+      "---",
+      'okf_version: "0.1"',
+      "profile: pkwiki/0.1",
+      "id: knowledge/alpha",
+      "type: Concept",
+      "title: Context Alpha",
+      "description: Alpha context page.",
+      "domain: knowledge",
+      "status: active",
+      "created: 2026-07-28",
+      "updated: 2026-07-28",
+      "confidence: high",
+      "privacy: private",
+      "sources: [src:fixture]",
+      "tags: [context]",
+      "---",
+      "",
+      "# Context Alpha",
+      "",
+      "See [Beta](beta.md).",
+    ].join("\n"),
+  );
+  writeFileSync(
+    join(pageDirectory, "beta.md"),
+    [
+      "---",
+      'okf_version: "0.1"',
+      "profile: pkwiki/0.1",
+      "id: knowledge/beta",
+      "type: Concept",
+      "title: Beta",
+      "description: Linked page.",
+      "domain: knowledge",
+      "status: active",
+      "created: 2026-07-28",
+      "updated: 2026-07-28",
+      "confidence: medium",
+      "privacy: private",
+      "sources: [src:fixture]",
+      "tags: [linked]",
+      "---",
+      "",
+      "# Beta",
+      "",
+      "Linked detail.",
+    ].join("\n"),
+  );
+
+  const listed = JSON.parse(run(["list-pages", "--json"], vault));
+  assert.deepEqual(
+    listed.pages.map((page) => page.id),
+    ["knowledge/alpha", "knowledge/beta"],
+  );
+  const read = JSON.parse(
+    run(["read-page", "wiki/knowledge/alpha.md", "--json"], vault),
+  );
+  assert.equal(read.id, "knowledge/alpha");
+  assert.match(read.content, /See \[Beta\]/);
+  const searched = JSON.parse(
+    run(["search", "Context Alpha", "--limit", "1", "--json"], vault),
+  );
+  assert.equal(searched.results.length, 1);
+  assert.equal(searched.results[0].id, "knowledge/alpha");
+
+  writeFileSync(
+    requestPath,
+    JSON.stringify({
+      version: "pkwiki.context-request/0.1",
+      runId: "run:2026-07-28-cli-context",
+      workflow: "query",
+      query: "Context Alpha",
+      sourceIds: [],
+      maxPages: 2,
+      maxChars: 2000,
+      linkDepth: 1,
+    }),
+  );
+  const context = JSON.parse(
+    run(["build-context", requestPath, "--json"], vault),
+  );
+  assert.equal(context.contextPack.budget.usedPages, 2);
+  assert.equal(context.contextPack.pages[1].selectionReason, "linked_from:knowledge/alpha");
+  const validate = JSON.parse(run(["validate", "--json"], vault));
+  assert.equal(validate.errors.length, 0);
+});
+
 test("apply-patch 支持 dry-run 和 JSON 输出", () => {
   const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-patch-"));
   const vault = join(parent, "vault");

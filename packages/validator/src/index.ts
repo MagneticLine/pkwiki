@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import YAML from "yaml";
 import {
   OKF_VERSION,
@@ -19,10 +19,12 @@ import {
   type SourceProcessingStatus,
 } from "@pkwiki/core";
 import {
+  getRunDirectory,
   parseCoverageArtifact,
   parseMergePlan,
   parseRunRecord,
 } from "@pkwiki/merge";
+import { parseContextPack, type ContextPack } from "@pkwiki/search";
 import {
   listWikiPagePaths,
   readPageManifest,
@@ -747,7 +749,26 @@ function validateRunArtifacts(
     }
     const runPath = join(runDirectory, "run.json");
     const planPath = join(runDirectory, "merge-plan.json");
-    if (!existsSync(runPath) || !existsSync(planPath)) {
+    const contextPath = join(runDirectory, "context-pack.json");
+    const contextPack = existsSync(contextPath)
+      ? validateContextPackArtifact(
+          vaultRoot,
+          directory,
+          contextPath,
+          sourceManifest,
+          errors,
+          warnings,
+        )
+      : null;
+    const hasRun = existsSync(runPath);
+    const hasPlan = existsSync(planPath);
+    if (!hasRun && !hasPlan && contextPack) {
+      continue;
+    }
+    if (!hasRun || !hasPlan) {
+      if (existsSync(contextPath) && !contextPack) {
+        continue;
+      }
       errors.push({
         severity: "error",
         code: "RUN_ARTIFACT_MISSING",
@@ -766,6 +787,22 @@ function validateRunArtifacts(
           code: "RUN_ID_MISMATCH",
           message: `Run Record 与 MergePlan runId 不一致：${directory}`,
           path: relative(vaultRoot, runDirectory),
+        });
+      }
+      if (contextPack && contextPack.runId !== run.runId) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_RUN_ID_MISMATCH",
+          message: `Context Pack 与 Run Record runId 不一致：${directory}`,
+          path: relative(vaultRoot, contextPath),
+        });
+      }
+      if (contextPack && contextPack.workflow !== "merge") {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_WORKFLOW_MISMATCH",
+          message: `Merge Run 只能关联 merge Context Pack：${directory}`,
+          path: relative(vaultRoot, contextPath),
         });
       }
       if (run.status !== "completed") {
@@ -826,6 +863,108 @@ function validateRunArtifacts(
       });
     }
   }
+}
+
+function validateContextPackArtifact(
+  vaultRoot: string,
+  directory: string,
+  contextPath: string,
+  sourceManifest: Record<string, unknown>,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[],
+): ContextPack | null {
+  const path = relative(vaultRoot, contextPath);
+  try {
+    const contextPack = parseContextPack(
+      JSON.parse(readFileSync(contextPath, "utf8")),
+    );
+    if (basename(getRunDirectory(contextPack.runId)) !== directory) {
+      errors.push({
+        severity: "error",
+        code: "CONTEXT_RUN_DIRECTORY_MISMATCH",
+        message: `Context Pack runId 与目录不一致：${contextPack.runId}`,
+        path,
+      });
+    }
+    for (const source of contextPack.sources) {
+      if (!isRecord(sourceManifest[source.sourceId])) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_SOURCE_NOT_FOUND",
+          message: `Context Pack 引用未登记 Source：${source.sourceId}`,
+          path,
+          target: source.sourceId,
+        });
+      }
+    }
+    const wikiRoot = readVaultConfig(vaultRoot).wikiRoot;
+    for (const page of contextPack.pages) {
+      if (!isSafeContextPagePath(vaultRoot, wikiRoot, page.path)) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_PAGE_PATH_INVALID",
+          message: `Context Pack Page 路径非法：${page.path}`,
+          path,
+          target: page.path,
+        });
+        continue;
+      }
+      const absolutePath = join(vaultRoot, page.path);
+      if (!existsSync(absolutePath) || !statSync(absolutePath).isFile()) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_PAGE_NOT_FOUND",
+          message: `Context Pack Page 不存在：${page.path}`,
+          path,
+          target: page.path,
+        });
+        continue;
+      }
+      if (computeSha256(absolutePath) !== page.checksum) {
+        warnings.push({
+          severity: "warning",
+          code: "CONTEXT_PAGE_CHECKSUM_STALE",
+          message: `Context Pack Page checksum 已过期：${page.path}`,
+          path,
+          target: page.path,
+        });
+      }
+    }
+    return contextPack;
+  } catch (error) {
+    errors.push({
+      severity: "error",
+      code: "INVALID_CONTEXT_PACK",
+      message: error instanceof Error ? error.message : String(error),
+      path,
+    });
+    return null;
+  }
+}
+
+function isSafeContextPagePath(
+  vaultRoot: string,
+  wikiRoot: string,
+  path: string,
+): boolean {
+  if (
+    path === "" ||
+    isAbsolute(path) ||
+    path.includes("\\") ||
+    path.includes("\0") ||
+    !path.startsWith(`${wikiRoot}/`) ||
+    !path.endsWith(".md")
+  ) {
+    return false;
+  }
+  const absoluteWikiRoot = resolve(vaultRoot, wikiRoot);
+  const pagePath = resolve(vaultRoot, path);
+  const relativePath = relative(absoluteWikiRoot, pagePath);
+  return (
+    relativePath !== "" &&
+    !relativePath.startsWith("..") &&
+    !isAbsolute(relativePath)
+  );
 }
 
 function validateCoverageReferences(

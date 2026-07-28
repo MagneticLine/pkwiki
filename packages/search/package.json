@@ -1,10 +1,9 @@
 {
-  "name": "@pkwiki/cli",
+  "name": "@pkwiki/search",
   "version": "0.1.0",
   "type": "module",
-  "bin": {
-    "pkwiki": "dist/index.js"
-  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.mjs",
@@ -12,11 +11,7 @@
   },
   "dependencies": {
     "@pkwiki/core": "workspace:*",
-    "@pkwiki/git": "workspace:*",
     "@pkwiki/indexer": "workspace:*",
-    "@pkwiki/merge": "workspace:*",
-    "@pkwiki/patch": "workspace:*",
-    "@pkwiki/search": "workspace:*",
-    "@pkwiki/validator": "workspace:*"
+    "@pkwiki/merge": "workspace:*"
   }
 }
