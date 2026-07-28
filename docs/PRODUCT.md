@@ -262,7 +262,7 @@ pkwiki diff
 
 当前尚未完成：
 
-- Source/Extraction/Merge 契约的运行时落地。
+- Search、Candidate Location 和 Context Pack 的运行时落地。
 - Context Pack 和候选页面定位。
 - Agent Harness 和 Pi Runtime Adapter。
 - Query、File-back 和运行记录。

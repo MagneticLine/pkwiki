@@ -13,10 +13,13 @@ import { fileURLToPath } from "node:url";
 import {
   OKF_VERSION,
   PKWIKI_PROFILE,
+  SourceContractError,
+  chunkSource,
   countFiles,
   fileExists,
   ingestSource,
   loadVault,
+  registerExtraction,
 } from "@pkwiki/core";
 import {
   GitDiffError,
@@ -24,6 +27,11 @@ import {
   getGitStatus,
 } from "@pkwiki/git";
 import { generateIndex } from "@pkwiki/indexer";
+import {
+  MergePlanError,
+  finalizeMerge,
+  registerMergePlan,
+} from "@pkwiki/merge";
 import {
   PatchPlanError,
   applyPatchPlan,
@@ -41,6 +49,9 @@ type ParsedArgs = {
   type?: string;
   domain?: string;
   title?: string;
+  privacy?: string;
+  language?: string;
+  maxChars?: string;
 };
 
 type StatusResult = {
@@ -105,6 +116,30 @@ function main(argv: string[]): void {
       process.exit(0);
     }
 
+    if (args.command === "chunk") {
+      const result = runChunk(args);
+      writeOutput(args.json, result, formatChunkResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "register-extraction") {
+      const result = runRegisterExtraction(args);
+      writeOutput(args.json, result, formatRegisterExtractionResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "register-merge-plan") {
+      const result = runRegisterMergePlan(args);
+      writeOutput(args.json, result, formatRegisterMergePlanResult(result));
+      process.exit(0);
+    }
+
+    if (args.command === "finalize-merge") {
+      const result = runFinalizeMerge(args);
+      writeOutput(args.json, result, formatFinalizeMergeResult(result));
+      process.exit(0);
+    }
+
     if (args.command === "index") {
       const result = generateIndex(args.path ?? process.cwd());
       writeOutput(args.json, result, formatIndexResult(result));
@@ -130,11 +165,18 @@ function main(argv: string[]): void {
     if (args.json) {
       const patchError = error instanceof PatchPlanError ? error : null;
       const gitDiffError = error instanceof GitDiffError ? error : null;
+      const sourceContractError =
+        error instanceof SourceContractError ? error : null;
+      const mergePlanError = error instanceof MergePlanError ? error : null;
       console.log(
         JSON.stringify(
           {
             ok: false,
-            code: patchError?.code ?? gitDiffError?.code,
+            code:
+              patchError?.code ??
+              gitDiffError?.code ??
+              sourceContractError?.code ??
+              mergePlanError?.code,
             message,
             error: message,
             path: patchError?.path,
@@ -156,6 +198,12 @@ function main(argv: string[]): void {
     if (error instanceof GitDiffError) {
       process.exit(error.exitCode);
     }
+    if (error instanceof SourceContractError) {
+      process.exit(error.exitCode);
+    }
+    if (error instanceof MergePlanError) {
+      process.exit(error.exitCode);
+    }
     process.exit(2);
   }
 }
@@ -163,7 +211,14 @@ function main(argv: string[]): void {
 function parseArgs(argv: string[]): ParsedArgs {
   const positional: string[] = [];
   const flags = new Map<string, string | true>();
-  const valueFlags = new Set(["--type", "--domain", "--title"]);
+  const valueFlags = new Set([
+    "--type",
+    "--domain",
+    "--title",
+    "--privacy",
+    "--language",
+    "--max-chars",
+  ]);
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -201,6 +256,9 @@ function parseArgs(argv: string[]): ParsedArgs {
     type: getStringFlag(flags, "--type"),
     domain: getStringFlag(flags, "--domain"),
     title: getStringFlag(flags, "--title"),
+    privacy: getStringFlag(flags, "--privacy"),
+    language: getStringFlag(flags, "--language"),
+    maxChars: getStringFlag(flags, "--max-chars"),
   };
 }
 
@@ -284,11 +342,19 @@ function runIngest(args: ParsedArgs): ReturnType<typeof ingestSource> {
   if (!args.domain) {
     throw new CliError("pkwiki ingest 需要 --domain", 2);
   }
+  if (args.privacy === "") {
+    throw new CliError("pkwiki ingest 的 --privacy 不能为空", 2);
+  }
+  if (args.language === "") {
+    throw new CliError("pkwiki ingest 的 --language 不能为空", 2);
+  }
 
   return ingestSource(process.cwd(), args.path, {
     type: args.type,
     domain: args.domain,
     title: args.title,
+    privacy: args.privacy,
+    language: args.language,
   });
 }
 
@@ -306,6 +372,45 @@ function runApplyPatch(args: ParsedArgs): ApplyPatchCliResult {
     ...result,
     validation: validateVault(result.vaultRoot),
   };
+}
+
+function runChunk(args: ParsedArgs): ReturnType<typeof chunkSource> {
+  if (!args.path) {
+    throw new CliError("pkwiki chunk 需要 Source ID", 2);
+  }
+  let maxChars: number | undefined;
+  if (args.maxChars !== undefined) {
+    if (args.maxChars === "") {
+      throw new CliError("pkwiki chunk 的 --max-chars 不能为空", 2);
+    }
+    maxChars = Number(args.maxChars);
+  }
+  return chunkSource(process.cwd(), args.path, { maxChars });
+}
+
+function runRegisterExtraction(
+  args: ParsedArgs,
+): ReturnType<typeof registerExtraction> {
+  if (!args.path) {
+    throw new CliError("pkwiki register-extraction 需要 artifact 文件路径", 2);
+  }
+  return registerExtraction(process.cwd(), args.path);
+}
+
+function runRegisterMergePlan(
+  args: ParsedArgs,
+): ReturnType<typeof registerMergePlan> {
+  if (!args.path) {
+    throw new CliError("pkwiki register-merge-plan 需要 plan 文件路径", 2);
+  }
+  return registerMergePlan(process.cwd(), args.path);
+}
+
+function runFinalizeMerge(args: ParsedArgs): ReturnType<typeof finalizeMerge> {
+  if (!args.path) {
+    throw new CliError("pkwiki finalize-merge 需要 Run ID", 2);
+  }
+  return finalizeMerge(process.cwd(), args.path);
 }
 
 function runDiff(args: ParsedArgs): ReturnType<typeof getGitDiffSummary> {
@@ -371,7 +476,8 @@ function formatIngestResult(result: ReturnType<typeof ingestSource>): string {
     `Raw: ${result.rawPath}`,
     `Extracted: ${result.extractedPath}`,
     `Checksum: ${result.checksum}`,
-    `Status: ${result.status}${result.reused ? " (reused)" : ""}`,
+    `Processing status: ${result.processingStatus ?? result.status}`,
+    `Lifecycle status: ${result.lifecycleStatus ?? "active"}${result.reused ? " (reused)" : ""}`,
   ].join("\n");
 }
 
@@ -383,6 +489,53 @@ function formatIndexResult(result: ReturnType<typeof generateIndex>): string {
     `Source references: ${result.sourceReferenceCount}`,
     `Page manifest: ${result.pageManifestPath}`,
     `Search index: ${result.indexPath}`,
+  ].join("\n");
+}
+
+function formatChunkResult(result: ReturnType<typeof chunkSource>): string {
+  return [
+    `Source: ${result.sourceId}`,
+    `Source checksum: ${result.sourceChecksum}`,
+    `Max chars: ${result.maxChars}`,
+    `Chunks: ${result.chunkCount}`,
+  ].join("\n");
+}
+
+function formatRegisterExtractionResult(
+  result: ReturnType<typeof registerExtraction>,
+): string {
+  return [
+    `Source: ${result.sourceId}`,
+    `Artifact: ${result.artifactPath}`,
+    `Extracted: ${result.extractedPath}`,
+    `Items: ${result.itemCount}`,
+    `Processing status: ${result.processingStatus}`,
+    `Lifecycle status: ${result.lifecycleStatus}`,
+  ].join("\n");
+}
+
+function formatRegisterMergePlanResult(
+  result: ReturnType<typeof registerMergePlan>,
+): string {
+  return [
+    `Run: ${result.runId}`,
+    `Directory: ${result.runDirectory}`,
+    `Sources: ${result.sourceCount}`,
+    `Coverage entries: ${result.coverageCount}`,
+    `Status: ${result.status}`,
+  ].join("\n");
+}
+
+function formatFinalizeMergeResult(
+  result: ReturnType<typeof finalizeMerge>,
+): string {
+  return [
+    `Run: ${result.runId}`,
+    `Coverage: ${result.coveragePath}`,
+    `Merged: ${result.mergedCount}`,
+    `Deferred: ${result.deferredCount}`,
+    `Discarded: ${result.discardedCount}`,
+    `Needs confirmation: ${result.needsConfirmationCount}`,
   ].join("\n");
 }
 
@@ -492,7 +645,11 @@ function printHelp(): void {
       "  pkwiki init <path> [--force] [--git] [--json]",
       "  pkwiki status [path] [--json]",
       "  pkwiki validate [path] [--json]",
-      "  pkwiki ingest <file> --type <type> --domain <domain> [--title <title>] [--json]",
+      "  pkwiki ingest <file> --type <type> --domain <domain> [--title <title>] [--privacy <privacy>] [--language <language>] [--json]",
+      "  pkwiki chunk <source-id> [--max-chars <number>] [--json]",
+      "  pkwiki register-extraction <artifact.json> [--json]",
+      "  pkwiki register-merge-plan <plan.json> [--json]",
+      "  pkwiki finalize-merge <run-id> [--json]",
       "  pkwiki index [path] [--json]",
       "  pkwiki apply-patch <plan> [--dry-run] [--json]",
       "  pkwiki diff [path] [--name-only] [--json]",
@@ -505,7 +662,10 @@ function getStringFlag(
   name: string,
 ): string | undefined {
   const value = flags.get(name);
-  return typeof value === "string" ? value : undefined;
+  if (typeof value === "string") {
+    return value;
+  }
+  return value === true ? "" : undefined;
 }
 
 class CliError extends Error {

@@ -32,7 +32,7 @@ Register Source
 9. PatchPlan：表达确定性文件修改，不承担知识取舍。
 10. Finalize：写入正式 coverage、推进 Processing Status 并保存 Run Record。
 
-0006 只负责 Register 契约和 Extracted Source 模板；Chunk、Extraction、MergePlan、Context Pack 和 Finalize 由后续 Feature Spec 分批实现。
+0006 已实现 Register 契约，0007 已实现稳定 Chunk 和 Extraction Artifact 登记；MergePlan、Context Pack 和 Finalize 由后续 Feature Spec 分批实现。
 
 详细契约见：
 

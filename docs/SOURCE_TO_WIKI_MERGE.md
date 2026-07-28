@@ -178,7 +178,7 @@ Wiki 修改通过校验和审查后，由确定性 finalize 流程：
 - 推进 Source Processing Status。
 - 保存 validate、diff 和 review 结果。
 
-具体 CLI 命名和原子写入边界由 0008 决定。Agent 不能为完成 merge 而直接修改 `.pkwiki/source_manifest.json` 或 Run Record。
+0008 已实现 `pkwiki register-merge-plan` 和 `pkwiki finalize-merge`。Finalize 以确定性方式写入 coverage、更新 Extracted Source 视图和 Source Processing Status；Agent 不能直接修改 `.pkwiki/source_manifest.json` 或 Run Record。
 
 ## 6. Coverage 与状态
 

@@ -1,5 +1,5 @@
 {
-  "name": "@pkwiki/validator",
+  "name": "@pkwiki/merge",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/index.js",
@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@pkwiki/core": "workspace:*",
-    "@pkwiki/indexer": "workspace:*",
-    "@pkwiki/merge": "workspace:*",
-    "yaml": "^2.6.1"
+    "@pkwiki/indexer": "workspace:*"
   }
 }

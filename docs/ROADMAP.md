@@ -77,7 +77,7 @@ Feature Spec：`0006-vault-source-contract`
 - Extracted Source 模板升级
 - 旧 manifest 向后兼容
 
-状态：Spec 已按新产品基线完成修订，运行时代码待实现。
+状态：已实现并通过单元测试、CLI 测试和三份低敏 mock source dogfood。
 
 ### 4.2 Extraction 与 Chunk Contract
 
@@ -91,6 +91,8 @@ Feature Spec：`0006-vault-source-contract`
 - Item 到 source/chunk/evidence 的细粒度追溯
 - 人类可读 Extracted Source 与机器可读 extraction artifact 的职责划分
 
+状态：已实现 `pkwiki chunk`、Extraction Artifact v0.1、`pkwiki register-extraction`、对应 validate 规则，并通过三份低敏 mock source dogfood。
+
 ### 4.3 MergePlan 与 Coverage Contract
 
 计划 Feature Spec：`0008-merge-plan-coverage`
@@ -103,6 +105,8 @@ Feature Spec：`0006-vault-source-contract`
 - `merged`、`deferred`、`discarded`、`needs_confirmation` 语义
 - 冲突、隐私和不确定性规则
 - coverage 与 Source processing status 的确定性更新
+
+状态：已实现 `@pkwiki/merge`、MergePlan/Coverage v0.1、最小 Run Record、`register-merge-plan`、`finalize-merge` 和 Run validate，并通过低敏端到端 dogfood。
 
 ### 4.4 Search 与 Context Pack
 

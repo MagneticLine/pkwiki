@@ -209,17 +209,23 @@ lifecycleStatus = active
 
 ## 6. Chunk Manifest
 
-`.pkwiki/chunk_manifest.json` 当前是必需占位 manifest，但正式字段尚未冻结。
+`.pkwiki/chunk_manifest.json` 记录确定性分块索引。每个 entry 包含 Chunk ID、Source ID、顺序、文件路径、原始行范围、字符数、chunk checksum、source checksum 和生成时间。
 
-0007 将定义：
+Chunk 文件位于：
 
-- Chunk ID 和 Source ID。
-- 内容范围和 checksum。
-- 标题或语义边界。
-- summary、entities 和 topics。
-- extraction 状态和 evidence locator。
+```text
+extracted/chunks/<source-id-file-name>/<index>.md
+```
 
-在 0007 完成前，不应把空 `chunk_manifest.json` 描述成已实现的大文件分块能力。
+`pkwiki chunk` 目前支持 UTF-8 Markdown 和纯文本，优先按段落边界切分，并保证相同 Source checksum 与 maxChars 得到稳定 ID 和内容。
+
+正式 Extraction Artifact 位于：
+
+```text
+extracted/data/<source-id-file-name>.json
+```
+
+它是 Information Item 和 evidence 的机器真相源；`extracted/sources/*.md` 是确定性生成的人类审查视图。
 
 ## 7. Page Manifest 与 Search Index
 
@@ -232,7 +238,7 @@ lifecycleStatus = active
 
 ## 8. Run Record
 
-Agent Harness 阶段将在 `.pkwiki/runs/<run-id>/` 保存一次工作流的审计记录。
+0008 已在 `.pkwiki/runs/<run-id>/` 建立 merge workflow 的最小审计记录；Agent Harness 阶段将在同一目录扩展 Context Pack、工具调用、approval 和 feedback。
 
 建议结构：
 
@@ -248,7 +254,7 @@ review.json
 feedback.json
 ```
 
-不同 workflow 只生成适用文件。Run Record 不保存 API key、access token 或其他 secret。
+当前 merge Run 至少生成 `run.json` 和 `merge-plan.json`，finalize 后生成 `coverage.json`。不同 workflow 只生成适用文件。Run Record 不保存 API key、access token 或其他 secret。
 
 Merge Coverage 的机器真相源属于正式 extraction/merge artifact 和 Run Record；Extracted Source Markdown 提供人类可读视图，但不依赖自由文本解析推进 Source status。
 

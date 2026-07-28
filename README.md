@@ -57,6 +57,7 @@ Feature Spec 编号表示开发批次，不等同于路线图阶段。后续计�
 - `packages/core`：Vault、配置、Source 和 manifest 契约。
 - `packages/validator`：结构、链接、manifest、引用和完整性校验。
 - `packages/indexer`：Page Manifest 和 Search Index。
+- `packages/merge`：MergePlan、Coverage、Run Record 和 finalize。
 - `packages/patch`：PatchPlan 解析和受控应用。
 - `packages/git`：Git status 和 diff 审查。
 - `packages/cli`：面向人和 Agent 的确定性命令入口。
@@ -73,14 +74,18 @@ pkwiki init <vault>
 pkwiki status
 pkwiki validate
 pkwiki ingest <file> --type <type> --domain <domain>
+pkwiki chunk <source-id> --max-chars <number>
+pkwiki register-extraction <artifact.json>
 pkwiki index
+pkwiki register-merge-plan <plan.json>
+pkwiki finalize-merge <run-id>
 pkwiki apply-patch <plan>
 pkwiki diff
 ```
 
 关键命令支持 Agent 使用的 `--json` 输出。
 
-当前 0006 Spec 已完成修订，下一步实现 Source Manifest v0.2、双状态、Raw 完整性校验和 Extracted Source 模板升级。Agent Harness、Query、File-back、MCP、HTTP、Web UI 和 Self-maintenance 尚未实现。
+0006 到 0008 已实现 Source Contract、稳定 chunk、Extraction Artifact、MergePlan、Coverage、最小 Run Record 和 finalize。下一步进入 0009 Search 与 Context Pack；Agent Harness、Query、File-back、MCP、HTTP、Web UI 和 Self-maintenance 尚未实现。
 
 ## 开发命令
 

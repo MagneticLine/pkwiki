@@ -51,6 +51,7 @@ Model Providers                 Markdown Vault + Git
 - `packages/core`：Vault、Source、配置和路径契约。
 - `packages/validator`：结构、链接、manifest、引用和规则校验。
 - `packages/indexer`：Page Manifest 和 Search Index。
+- `packages/merge`：MergePlan、Coverage、最小 Run Record 和 finalize。
 - `packages/patch`：PatchPlan 校验和受控应用。
 - `packages/git`：worktree 状态和 diff 审查。
 - `packages/cli`：面向人和 Agent 的稳定命令入口。

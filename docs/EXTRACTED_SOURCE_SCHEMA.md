@@ -2,7 +2,7 @@
 
 Extracted Source 是 Raw Source 和 Wiki 之间的人类可读工作层。
 
-它不是简单摘要，也不单独承担全部机器状态。Extracted Source Markdown 用于阅读、审查和修正；正式 Information Item、MergePlan 和 Merge Coverage 的机器结构将在 0007、0008 中定义，并记录在 extraction artifact 和 Run Record 中。
+它不是简单摘要，也不单独承担全部机器状态。Extracted Source Markdown 用于阅读和审查；正式 Information Item 与 evidence 记录在 `extracted/data/<source-id-file-name>.json`，MergePlan 和 Merge Coverage 的机器结构由 0008 定义。
 
 ## 1. 目标
 
@@ -120,7 +120,7 @@ evidence
 confidence
 ```
 
-`itemId` 在同一 Source 内稳定，例如 `fact:f1`、`event:e1`。正式 JSON schema 由 0007 冻结。
+`itemId` 在同一 Source 内稳定，例如 `fact:f1`、`event:e1`。Extraction Artifact v0.1 已由 0007 冻结并通过 `pkwiki register-extraction` 登记。
 
 ### 5.5 Facts
 
