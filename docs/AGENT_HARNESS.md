@@ -67,6 +67,8 @@ Context Pack 是一次 Agent 判断实际读取的有限知识集合。
 
 Context Pack 让“Agent 到底看到了什么”成为可审查事实，也是定位错误、遗漏和错误合并的基础。
 
+0009 已实现确定性 Context Request/Pack v0.1 和 `list-pages`、`read-page`、`search`、`build-context`。Harness 负责根据 workflow 生成请求并消费结果，不重新实现搜索、路径安全、预算或 artifact 写入逻辑。稳定契约见 [Search 与 Context Pack](SEARCH_AND_CONTEXT.md)。
+
 ## 6. Run Lifecycle
 
 一次 Harness Run 应经历：

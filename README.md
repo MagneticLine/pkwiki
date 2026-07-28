@@ -20,9 +20,10 @@ Wiki 层以 OKF v0.1 作为外部兼容目标，并使用更严格的 `pkwiki/0.
 8. [Extracted Source Schema](docs/EXTRACTED_SOURCE_SCHEMA.md)：人类可读 extraction 工作层。
 9. [Ingest Pipeline](docs/INGEST_PIPELINE.md)：编译器式 Source 摄入流水线。
 10. [Source-to-Wiki Merge](docs/SOURCE_TO_WIKI_MERGE.md)：定位、取舍、coverage、冲突和审查。
-11. [Agent Harness](docs/AGENT_HARNESS.md)：Context Pack、Run、Runtime Adapter、Query 和 File-back。
-12. [PatchPlan](docs/PATCH_PLAN.md)：受控修改协议和 `apply-patch` 边界。
-13. [Git Diff Review](docs/GIT_DIFF_REVIEW.md)：Patch 后的 worktree 变更审查。
+11. [Search 与 Context Pack](docs/SEARCH_AND_CONTEXT.md)：确定性读取、候选排序、预算和运行输入契约。
+12. [Agent Harness](docs/AGENT_HARNESS.md)：Run、Runtime Adapter、Query 和 File-back。
+13. [PatchPlan](docs/PATCH_PLAN.md)：受控修改协议和 `apply-patch` 边界。
+14. [Git Diff Review](docs/GIT_DIFF_REVIEW.md)：Patch 后的 worktree 变更审查。
 
 `docs/PRODUCT.md` 定义产品，`docs/ROADMAP.md` 定义阶段，`specs/<feature>/` 定义单次开发批次。其他文档不能各自维护新的产品路线图。
 
@@ -36,6 +37,9 @@ specs/
   0004-patch-plan-apply/
   0005-git-diff-review/
   0006-vault-source-contract/
+  0007-extraction-chunk-contract/
+  0008-merge-plan-coverage/
+  0009-search-context-pack/
 ```
 
 每个目录包含：
@@ -57,6 +61,7 @@ Feature Spec 编号表示开发批次，不等同于路线图阶段。后续计�
 - `packages/core`：Vault、配置、Source 和 manifest 契约。
 - `packages/validator`：结构、链接、manifest、引用和完整性校验。
 - `packages/indexer`：Page Manifest 和 Search Index。
+- `packages/search`：安全读取、确定性搜索、链接扩展和 Context Pack。
 - `packages/merge`：MergePlan、Coverage、Run Record 和 finalize。
 - `packages/patch`：PatchPlan 解析和受控应用。
 - `packages/git`：Git status 和 diff 审查。
@@ -67,7 +72,7 @@ Feature Spec 编号表示开发批次，不等同于路线图阶段。后续计�
 
 ## 当前已实现
 
-0001 到 0005 已实现：
+0001 到 0009 已实现：
 
 ```bash
 pkwiki init <vault>
@@ -79,13 +84,17 @@ pkwiki register-extraction <artifact.json>
 pkwiki index
 pkwiki register-merge-plan <plan.json>
 pkwiki finalize-merge <run-id>
+pkwiki list-pages
+pkwiki read-page <wiki-path>
+pkwiki search <query> --limit <number>
+pkwiki build-context <request.json>
 pkwiki apply-patch <plan>
 pkwiki diff
 ```
 
 关键命令支持 Agent 使用的 `--json` 输出。
 
-0006 到 0008 已实现 Source Contract、稳定 chunk、Extraction Artifact、MergePlan、Coverage、最小 Run Record 和 finalize。下一步进入 0009 Search 与 Context Pack；Agent Harness、Query、File-back、MCP、HTTP、Web UI 和 Self-maintenance 尚未实现。
+阶段 4 Merge Foundations 已完成：Source Contract、稳定 chunk、Extraction Artifact、确定性候选定位、Context Pack、MergePlan、Coverage、最小 Run Record 和 finalize 已通过低敏端到端验收。下一阶段是 Agent Harness MVP；模型生成、Query 回答、File-back、MCP、HTTP、Web UI 和 Self-maintenance 尚未实现。
 
 ## 开发命令
 

@@ -27,7 +27,7 @@ Agent Harness Core
                |                      |
                v                      v
 Runtime Adapters                Deterministic Knowledge Engine
-Pi first, more later            core / validator / indexer / patch / git
+Pi first, more later            core / indexer / search / merge / patch / git
                |                      |
                v                      v
 Model Providers                 Markdown Vault + Git
@@ -51,6 +51,7 @@ Model Providers                 Markdown Vault + Git
 - `packages/core`：Vault、Source、配置和路径契约。
 - `packages/validator`：结构、链接、manifest、引用和规则校验。
 - `packages/indexer`：Page Manifest 和 Search Index。
+- `packages/search`：安全读取、确定性词法排序、链接扩展和 Context Pack。
 - `packages/merge`：MergePlan、Coverage、最小 Run Record 和 finalize。
 - `packages/patch`：PatchPlan 校验和受控应用。
 - `packages/git`：worktree 状态和 diff 审查。
@@ -62,7 +63,7 @@ Model Providers                 Markdown Vault + Git
 
 `packages/agent` 承载 Wiki 场景的工作流和质量适配能力：
 
-- 构建 Context Pack。
+- 请求并消费确定性工具构建的 Context Pack。
 - 管理 Run lifecycle。
 - 调用 Runtime Adapter。
 - 要求结构化 extraction、MergePlan 和 PatchPlan。

@@ -229,16 +229,17 @@ extracted/data/<source-id-file-name>.json
 
 ## 7. Page Manifest 与 Search Index
 
-`.pkwiki/page_manifest.json` 和 `outputs/index.json` 由 `pkwiki index` 生成。
+`.pkwiki/page_manifest.json` 和 `outputs/index.json` 由 `pkwiki index` 或 Search 命令重新生成。
 
 - Page Manifest 记录页面 metadata 和 checksum。
 - Search Index 聚合标题、摘要、链接、backlink 和反向 Source 引用。
 - 二者用于定位候选页面，不承载长期知识事实。
 - Agent 不直接编辑。
+- `pkwiki list-pages`、`read-page`、`search` 和 `build-context` 提供受控读取入口。
 
 ## 8. Run Record
 
-0008 已在 `.pkwiki/runs/<run-id>/` 建立 merge workflow 的最小审计记录；Agent Harness 阶段将在同一目录扩展 Context Pack、工具调用、approval 和 feedback。
+0008 已在 `.pkwiki/runs/<run-id>/` 建立 merge workflow 的最小审计记录；0009 已在同一目录加入 Context Pack。Agent Harness 阶段继续扩展工具调用、approval 和 feedback。
 
 建议结构：
 
@@ -254,7 +255,7 @@ review.json
 feedback.json
 ```
 
-当前 merge Run 至少生成 `run.json` 和 `merge-plan.json`，finalize 后生成 `coverage.json`。不同 workflow 只生成适用文件。Run Record 不保存 API key、access token 或其他 secret。
+Context planning 可以先生成只含 `context-pack.json` 的目录。`register-merge-plan` 在同一目录补充 `run.json` 和 `merge-plan.json` 并保留 Context Pack，finalize 后生成 `coverage.json`。Query 目前可以只保存 Context Pack；不同 workflow 只生成适用文件。Run Record 不保存 API key、access token 或其他 secret。
 
 Merge Coverage 的机器真相源属于正式 extraction/merge artifact 和 Run Record；Extracted Source Markdown 提供人类可读视图，但不依赖自由文本解析推进 Source status。
 
@@ -270,7 +271,7 @@ Merge Coverage 的机器真相源属于正式 extraction/merge artifact 和 Run 
 | `system/` | 主要维护者 | 只能提出变更 | 后续 policy 工具写 |
 | `.pkwiki/` | 谨慎编辑 | 不直接写 | manifest 和 Run 工具写 |
 
-0008 必须定义 merge 后如何以确定性方式写入 coverage 并推进 `processingStatus`，不能让 Agent 为完成流程而自由编辑 `.pkwiki/`。
+Merge、Search 和 Context Pack 均通过确定性工具写入 `.pkwiki/`。Agent 不能为完成流程而自由编辑 manifest、coverage 或 Run Artifact。
 
 ## 10. 版本管理
 

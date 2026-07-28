@@ -248,28 +248,35 @@ Artifact Filing 是后续范围，不属于当前 `pkwiki/0.1` 的必需能力�
 
 ## 7. 当前产品状态
 
-0001 到 0005 已完成确定性工具基础：
+0001 到 0009 已完成 Merge Foundations 的确定性工具和协议：
 
 ```text
 pkwiki init
 pkwiki status
 pkwiki validate
 pkwiki ingest
+pkwiki chunk
+pkwiki register-extraction
 pkwiki index
+pkwiki list-pages
+pkwiki read-page
+pkwiki search
+pkwiki build-context
+pkwiki register-merge-plan
+pkwiki finalize-merge
 pkwiki apply-patch
 pkwiki diff
 ```
 
 当前尚未完成：
 
-- Search、Candidate Location 和 Context Pack 的运行时落地。
-- Context Pack 和候选页面定位。
 - Agent Harness 和 Pi Runtime Adapter。
-- Query、File-back 和运行记录。
+- 模型驱动的 extraction、MergePlan、PatchPlan、Query 和 File-back。
+- 完整 Harness Run lifecycle、approval、feedback 和 eval。
 - MCP、HTTP、本地 Web UI 和静态站点输出。
 - Wiki Health 和 Self-maintenance。
 
-下一里程碑是先完成 Merge Foundations，再进入 Agent Harness MVP。
+Merge Foundations 已通过低敏端到端验收。下一里程碑是 Agent Harness MVP。
 
 ## 8. 非目标
 

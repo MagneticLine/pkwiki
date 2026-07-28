@@ -81,7 +81,7 @@ Feature Spec：`0006-vault-source-contract`
 
 ### 4.2 Extraction 与 Chunk Contract
 
-计划 Feature Spec：`0007-extraction-chunk-contract`
+Feature Spec：`0007-extraction-chunk-contract`
 
 范围：
 
@@ -95,7 +95,7 @@ Feature Spec：`0006-vault-source-contract`
 
 ### 4.3 MergePlan 与 Coverage Contract
 
-计划 Feature Spec：`0008-merge-plan-coverage`
+Feature Spec：`0008-merge-plan-coverage`
 
 范围：
 
@@ -110,7 +110,7 @@ Feature Spec：`0006-vault-source-contract`
 
 ### 4.4 Search 与 Context Pack
 
-计划 Feature Spec：`0009-search-context-pack`
+Feature Spec：`0009-search-context-pack`
 
 范围：
 
@@ -121,13 +121,19 @@ Feature Spec：`0006-vault-source-contract`
 - Candidate Page 定位结果和证据
 - 后续可替换或扩展为 QMD、SQLite FTS 或向量检索
 
+状态：已实现 `@pkwiki/search`、`list-pages`、`read-page`、`search`、`build-context`、Context Request/Pack v0.1 和 validate 规则，并通过多字段搜索、链接扩展、预算截断、stale warning 和 CLI dogfood。
+
 阶段 4 验收：给定一份低敏 Raw Source，系统能够产出可审查的 extraction、候选页面、MergePlan、PatchPlan 和 coverage，并能说明每个重要信息单元的去向。
+
+状态：已于 2026-07-28 通过使用仓库低敏 mock source 的端到端集成验收，覆盖 ingest、chunk、extraction、Context Pack、MergePlan、PatchPlan、finalize、validate 和 diff。阶段 4 已完成。
 
 ## 阶段 5：Agent Harness MVP
 
 目标：提供一个配置模型 API 后即可运行的 Wiki Agent 应用，而不把确定性 core 绑定到单一 Runtime。
 
 计划 Feature Spec：从 `0010-agent-harness-mvp` 开始拆分。
+
+状态：下一阶段，尚未开始实现。
 
 范围：
 

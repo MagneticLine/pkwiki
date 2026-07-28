@@ -57,11 +57,12 @@ Context Pack 先完整构造和校验，再写入：
 .pkwiki/runs/<run-id>/context-pack.json
 ```
 
-Run 目录可以来自 0008 MergePlan，也可以为 query workflow 新建。0009 不创建完整 Query Run Record。
+Run 目录可以由 `build-context` 先创建，也可以来自 0008 MergePlan。`register-merge-plan` 允许接管只含 `context-pack.json` 的同名目录，并原子补充 `run.json` 和 `merge-plan.json`；其他已有内容仍按 `RUN_ALREADY_EXISTS` 拒绝。0009 不创建完整 Query Run Record。
 
 ## 8. 错误码
 
 ```text
+INVALID_SEARCH_QUERY
 INVALID_SEARCH_LIMIT
 UNSAFE_READ_PATH
 PAGE_NOT_FOUND
@@ -73,3 +74,5 @@ CONTEXT_BUDGET_INVALID
 ## 9. Validate
 
 Validator 检查 Context Pack version、runId、budget、Source 引用、Page 路径和 checksum。Wiki Page 后续变化时报告 `CONTEXT_PAGE_CHECKSUM_STALE` warning，不把历史 Context Pack 判为非法。
+
+合法的 context-only planning 目录对 merge 和 query workflow 都可通过 validate；当目录同时存在 merge Run Record 时，Context Pack workflow 必须为 merge。

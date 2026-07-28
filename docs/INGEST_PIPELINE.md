@@ -32,11 +32,12 @@ Register Source
 9. PatchPlan：表达确定性文件修改，不承担知识取舍。
 10. Finalize：写入正式 coverage、推进 Processing Status 并保存 Run Record。
 
-0006 已实现 Register 契约，0007 已实现稳定 Chunk 和 Extraction Artifact 登记；MergePlan、Context Pack 和 Finalize 由后续 Feature Spec 分批实现。
+0006 到 0009 已实现 Register、Chunk、Extraction Artifact、Candidate Location、Context Pack、MergePlan、Coverage 和 Finalize 的确定性契约。下一阶段由 Agent Harness 调用模型生成 extraction、MergePlan 和 PatchPlan，并编排这些工具。
 
 详细契约见：
 
 - [Vault Spec](VAULT_SPEC.md)
 - [Extracted Source Schema](EXTRACTED_SOURCE_SCHEMA.md)
 - [Source-to-Wiki Merge](SOURCE_TO_WIKI_MERGE.md)
+- [Search 与 Context Pack](SEARCH_AND_CONTEXT.md)
 - [Agent Harness](AGENT_HARNESS.md)

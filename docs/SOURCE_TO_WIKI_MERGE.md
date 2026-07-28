@@ -113,6 +113,17 @@ pkwiki validate --json
 
 候选页面必须记录 reason、confidence 和定位证据。Agent 只读取满足上下文预算的少量候选页面和 section，并把实际读取内容写入 Context Pack。
 
+0009 已实现：
+
+```bash
+pkwiki list-pages --json
+pkwiki read-page <wiki-path> --json
+pkwiki search <query> --limit <number> --json
+pkwiki build-context <request.json> --json
+```
+
+`build-context` 可以在 MergePlan 登记前创建 planning Run 目录；后续 `register-merge-plan` 必须保留该 Context Pack。详细契约见 [Search 与 Context Pack](SEARCH_AND_CONTEXT.md)。
+
 ### 5.4 Merge Decision
 
 每个重要 Information Item 必须选择：
