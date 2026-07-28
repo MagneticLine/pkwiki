@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import YAML from "yaml";
 import {
   OKF_VERSION,
@@ -8,9 +8,23 @@ import {
   REQUIRED_FILES,
   computeSha256,
   findVaultRoot,
+  isSourceLifecycleStatus,
+  isSourceProcessingStatus,
+  readChunkManifest,
+  readExtractionArtifact,
   readVaultConfig,
   readSourceManifest,
+  sourceIdToFileName,
+  type SourceLifecycleStatus,
+  type SourceProcessingStatus,
 } from "@pkwiki/core";
+import {
+  getRunDirectory,
+  parseCoverageArtifact,
+  parseMergePlan,
+  parseRunRecord,
+} from "@pkwiki/merge";
+import { parseContextPack, type ContextPack } from "@pkwiki/search";
 import {
   listWikiPagePaths,
   readPageManifest,
@@ -87,6 +101,9 @@ export function validateVault(startPath = process.cwd()): ValidationResult {
   validateRequiredDirectories(vaultRoot, errors);
   validateRequiredFiles(vaultRoot, errors);
   validateSourceManifest(vaultRoot, errors, warnings);
+  validateChunkManifest(vaultRoot, errors, warnings);
+  validateExtractionArtifacts(vaultRoot, errors, warnings);
+  validateRunArtifacts(vaultRoot, errors, warnings);
   validateWikiPages(vaultRoot, errors, warnings);
   validatePageManifestAndIndex(vaultRoot, warnings);
 
@@ -248,14 +265,7 @@ function validateSourceManifest(
       continue;
     }
 
-    const requiredFields = [
-      "sourceId",
-      "rawPath",
-      "type",
-      "domain",
-      "checksum",
-      "status",
-    ];
+    const requiredFields = ["sourceId", "rawPath", "type", "domain", "checksum"];
     for (const field of requiredFields) {
       if (isMissing(rawEntry[field])) {
         errors.push({
@@ -276,10 +286,12 @@ function validateSourceManifest(
       });
     }
 
-    addMissingSourceFileWarning(
+    const sourceStatus = validateSourceStatus(rawEntry, errors);
+    validateOptionalSourceMetadata(rawEntry, errors);
+    validateRawSource(
       vaultRoot,
-      rawEntry.rawPath,
-      "RAW_SOURCE_MISSING",
+      rawEntry,
+      sourceStatus?.lifecycleStatus ?? null,
       warnings,
     );
     addMissingSourceFileWarning(
@@ -288,6 +300,720 @@ function validateSourceManifest(
       "EXTRACTED_SOURCE_MISSING",
       warnings,
     );
+  }
+}
+
+function validateSourceStatus(
+  rawEntry: Record<string, unknown>,
+  errors: ValidationIssue[],
+): {
+  processingStatus: SourceProcessingStatus;
+  lifecycleStatus: SourceLifecycleStatus;
+} | null {
+  const hasProcessingStatus = rawEntry.processingStatus !== undefined;
+  const hasLifecycleStatus = rawEntry.lifecycleStatus !== undefined;
+
+  if (hasProcessingStatus !== hasLifecycleStatus) {
+    errors.push({
+      severity: "error",
+      code: "INCOMPLETE_SOURCE_STATUS",
+      message: "processingStatus 和 lifecycleStatus 必须同时存在",
+      path: ".pkwiki/source_manifest.json",
+    });
+    return null;
+  }
+
+  if (hasProcessingStatus && hasLifecycleStatus) {
+    const processingStatus = rawEntry.processingStatus;
+    const lifecycleStatus = rawEntry.lifecycleStatus;
+
+    if (!isSourceProcessingStatus(processingStatus)) {
+      errors.push({
+        severity: "error",
+        code: "INVALID_SOURCE_PROCESSING_STATUS",
+        message: `非法 processingStatus：${String(processingStatus)}`,
+        path: ".pkwiki/source_manifest.json",
+      });
+    }
+    if (!isSourceLifecycleStatus(lifecycleStatus)) {
+      errors.push({
+        severity: "error",
+        code: "INVALID_SOURCE_LIFECYCLE_STATUS",
+        message: `非法 lifecycleStatus：${String(lifecycleStatus)}`,
+        path: ".pkwiki/source_manifest.json",
+      });
+    }
+
+    if (rawEntry.status !== undefined) {
+      if (rawEntry.status !== "registered") {
+        errors.push({
+          severity: "error",
+          code: "INVALID_LEGACY_SOURCE_STATUS",
+          message: `非法 legacy status：${String(rawEntry.status)}`,
+          path: ".pkwiki/source_manifest.json",
+        });
+      } else if (
+        isSourceProcessingStatus(processingStatus) &&
+        processingStatus !== "registered"
+      ) {
+        errors.push({
+          severity: "error",
+          code: "CONFLICTING_SOURCE_STATUS",
+          message: "新旧 Source 状态字段语义冲突",
+          path: ".pkwiki/source_manifest.json",
+        });
+      }
+    }
+
+    return isSourceProcessingStatus(processingStatus) &&
+      isSourceLifecycleStatus(lifecycleStatus)
+      ? { processingStatus, lifecycleStatus }
+      : null;
+  }
+
+  if (rawEntry.status === undefined) {
+    errors.push({
+      severity: "error",
+      code: "MISSING_SOURCE_STATUS",
+      message: "source manifest 记录缺少合法 Source 状态",
+      path: ".pkwiki/source_manifest.json",
+    });
+    return null;
+  }
+
+  if (rawEntry.status !== "registered") {
+    errors.push({
+      severity: "error",
+      code: "INVALID_LEGACY_SOURCE_STATUS",
+      message: `非法 legacy status：${String(rawEntry.status)}`,
+      path: ".pkwiki/source_manifest.json",
+    });
+    return null;
+  }
+
+  return { processingStatus: "registered", lifecycleStatus: "active" };
+}
+
+function validateOptionalSourceMetadata(
+  rawEntry: Record<string, unknown>,
+  errors: ValidationIssue[],
+): void {
+  const optionalStrings = [
+    "originalName",
+    "ingestedAt",
+    "mtime",
+    "privacy",
+    "language",
+  ];
+  for (const field of optionalStrings) {
+    if (
+      rawEntry[field] !== undefined &&
+      (typeof rawEntry[field] !== "string" || rawEntry[field] === "")
+    ) {
+      errors.push({
+        severity: "error",
+        code: "INVALID_SOURCE_MANIFEST_FIELD_TYPE",
+        message: `source manifest 字段 ${field} 必须是非空字符串`,
+        path: ".pkwiki/source_manifest.json",
+      });
+    }
+  }
+
+  if (
+    rawEntry.sizeBytes !== undefined &&
+    (typeof rawEntry.sizeBytes !== "number" ||
+      !Number.isInteger(rawEntry.sizeBytes) ||
+      rawEntry.sizeBytes < 0)
+  ) {
+    errors.push({
+      severity: "error",
+      code: "INVALID_SOURCE_MANIFEST_FIELD_TYPE",
+      message: "source manifest 字段 sizeBytes 必须是非负整数",
+      path: ".pkwiki/source_manifest.json",
+    });
+  }
+}
+
+function validateRawSource(
+  vaultRoot: string,
+  rawEntry: Record<string, unknown>,
+  lifecycleStatus: SourceLifecycleStatus | null,
+  warnings: ValidationIssue[],
+): void {
+  if (typeof rawEntry.rawPath !== "string" || rawEntry.rawPath === "") {
+    return;
+  }
+
+  const absolutePath = join(vaultRoot, rawEntry.rawPath);
+  const pathExists = existsSync(absolutePath);
+  const fileExists = pathExists && statSync(absolutePath).isFile();
+
+  if (lifecycleStatus === "deleted") {
+    if (pathExists) {
+      warnings.push({
+        severity: "warning",
+        code: "DELETED_SOURCE_FILE_EXISTS",
+        message: `Source 已标记 deleted，但 Raw 文件仍存在：${rawEntry.rawPath}`,
+        path: ".pkwiki/source_manifest.json",
+        target: rawEntry.rawPath,
+      });
+    }
+    return;
+  }
+
+  if (!fileExists) {
+    warnings.push({
+      severity: "warning",
+      code: "RAW_SOURCE_MISSING",
+      message: `source manifest 指向的文件不存在：${rawEntry.rawPath}`,
+      path: ".pkwiki/source_manifest.json",
+      target: rawEntry.rawPath,
+    });
+    return;
+  }
+
+  if (
+    typeof rawEntry.checksum === "string" &&
+    rawEntry.checksum !== computeSha256(absolutePath)
+  ) {
+    warnings.push({
+      severity: "warning",
+      code: "RAW_SOURCE_CHECKSUM_MISMATCH",
+      message: `Raw Source checksum 与 manifest 不一致：${rawEntry.rawPath}`,
+      path: ".pkwiki/source_manifest.json",
+      target: rawEntry.rawPath,
+    });
+  }
+
+  if (
+    typeof rawEntry.sizeBytes === "number" &&
+    rawEntry.sizeBytes !== statSync(absolutePath).size
+  ) {
+    warnings.push({
+      severity: "warning",
+      code: "RAW_SOURCE_SIZE_MISMATCH",
+      message: `Raw Source size 与 manifest 不一致：${rawEntry.rawPath}`,
+      path: ".pkwiki/source_manifest.json",
+      target: rawEntry.rawPath,
+    });
+  }
+}
+
+function validateChunkManifest(
+  vaultRoot: string,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[],
+): void {
+  let chunkManifest: Record<string, unknown>;
+  let sourceManifest: Record<string, unknown>;
+  try {
+    chunkManifest = readChunkManifest(vaultRoot);
+    sourceManifest = readSourceManifest(vaultRoot);
+  } catch (error) {
+    errors.push({
+      severity: "error",
+      code: "INVALID_CHUNK_MANIFEST",
+      message: error instanceof Error ? error.message : String(error),
+      path: ".pkwiki/chunk_manifest.json",
+    });
+    return;
+  }
+
+  const requiredFields = [
+    "chunkId",
+    "sourceId",
+    "index",
+    "path",
+    "startLine",
+    "endLine",
+    "charCount",
+    "checksum",
+    "sourceChecksum",
+    "createdAt",
+  ];
+
+  for (const [chunkId, rawEntry] of Object.entries(chunkManifest)) {
+    if (!isRecord(rawEntry)) {
+      errors.push({
+        severity: "error",
+        code: "INVALID_CHUNK_MANIFEST_ENTRY",
+        message: `chunk manifest 记录必须是对象：${chunkId}`,
+        path: ".pkwiki/chunk_manifest.json",
+      });
+      continue;
+    }
+    for (const field of requiredFields) {
+      if (isMissing(rawEntry[field])) {
+        errors.push({
+          severity: "error",
+          code: "MISSING_CHUNK_MANIFEST_FIELD",
+          message: `chunk manifest 记录缺少字段 ${field}`,
+          path: ".pkwiki/chunk_manifest.json",
+        });
+      }
+    }
+    if (rawEntry.chunkId !== chunkId) {
+      errors.push({
+        severity: "error",
+        code: "CHUNK_ID_MISMATCH",
+        message: `chunk manifest key 与 chunkId 不一致：${chunkId}`,
+        path: ".pkwiki/chunk_manifest.json",
+      });
+    }
+
+    const source =
+      typeof rawEntry.sourceId === "string"
+        ? sourceManifest[rawEntry.sourceId]
+        : undefined;
+    if (!isRecord(source)) {
+      errors.push({
+        severity: "error",
+        code: "CHUNK_SOURCE_NOT_FOUND",
+        message: `chunk 引用未登记 Source：${String(rawEntry.sourceId)}`,
+        path: ".pkwiki/chunk_manifest.json",
+      });
+      continue;
+    }
+    if (rawEntry.sourceChecksum !== source.checksum) {
+      warnings.push({
+        severity: "warning",
+        code: "CHUNK_SOURCE_CHECKSUM_STALE",
+        message: `chunk sourceChecksum 已过期：${chunkId}`,
+        path: ".pkwiki/chunk_manifest.json",
+        target: chunkId,
+      });
+    }
+    if (typeof rawEntry.path !== "string" || rawEntry.path === "") {
+      continue;
+    }
+    const chunkPath = join(vaultRoot, rawEntry.path);
+    if (!existsSync(chunkPath) || !statSync(chunkPath).isFile()) {
+      warnings.push({
+        severity: "warning",
+        code: "CHUNK_FILE_MISSING",
+        message: `chunk 文件不存在：${rawEntry.path}`,
+        path: ".pkwiki/chunk_manifest.json",
+        target: rawEntry.path,
+      });
+      continue;
+    }
+    if (
+      typeof rawEntry.checksum === "string" &&
+      rawEntry.checksum !== computeSha256(chunkPath)
+    ) {
+      warnings.push({
+        severity: "warning",
+        code: "CHUNK_CHECKSUM_MISMATCH",
+        message: `chunk checksum 已过期：${rawEntry.path}`,
+        path: ".pkwiki/chunk_manifest.json",
+        target: rawEntry.path,
+      });
+    }
+  }
+}
+
+function validateExtractionArtifacts(
+  vaultRoot: string,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[],
+): void {
+  let sourceManifest: Record<string, unknown>;
+  let chunkManifest: Record<string, unknown>;
+  try {
+    sourceManifest = readSourceManifest(vaultRoot);
+    chunkManifest = readChunkManifest(vaultRoot);
+  } catch {
+    return;
+  }
+
+  const extractionRoot = join(vaultRoot, "extracted/data");
+  const artifactSourceIds = new Set<string>();
+  if (existsSync(extractionRoot) && statSync(extractionRoot).isDirectory()) {
+    for (const file of readdirSync(extractionRoot)) {
+      if (!file.endsWith(".json")) {
+        continue;
+      }
+      const artifactPath = join(extractionRoot, file);
+      try {
+        const artifact = readExtractionArtifact(artifactPath);
+        artifactSourceIds.add(artifact.sourceId);
+        const source = sourceManifest[artifact.sourceId];
+        if (!isRecord(source)) {
+          errors.push({
+            severity: "error",
+            code: "EXTRACTION_SOURCE_NOT_FOUND",
+            message: `Extraction Artifact 引用未登记 Source：${artifact.sourceId}`,
+            path: relative(vaultRoot, artifactPath),
+          });
+          continue;
+        }
+        if (artifact.sourceChecksum !== source.checksum) {
+          warnings.push({
+            severity: "warning",
+            code: "EXTRACTION_SOURCE_CHECKSUM_STALE",
+            message: `Extraction Artifact sourceChecksum 已过期：${artifact.sourceId}`,
+            path: relative(vaultRoot, artifactPath),
+          });
+        }
+        for (const item of artifact.items) {
+          for (const evidence of item.evidence) {
+            const chunk = chunkManifest[evidence.chunkId];
+            if (
+              !isRecord(chunk) ||
+              chunk.sourceId !== artifact.sourceId ||
+              chunk.sourceChecksum !== artifact.sourceChecksum
+            ) {
+              errors.push({
+                severity: "error",
+                code: "EXTRACTION_EVIDENCE_INVALID",
+                message: `Information Item ${item.itemId} 引用了无效 chunk：${evidence.chunkId}`,
+                path: relative(vaultRoot, artifactPath),
+                target: evidence.chunkId,
+              });
+            }
+          }
+        }
+      } catch (error) {
+        errors.push({
+          severity: "error",
+          code: "INVALID_EXTRACTION_ARTIFACT",
+          message: error instanceof Error ? error.message : String(error),
+          path: relative(vaultRoot, artifactPath),
+        });
+      }
+    }
+  }
+
+  for (const [sourceId, rawSource] of Object.entries(sourceManifest)) {
+    if (!isRecord(rawSource)) {
+      continue;
+    }
+    const status = getSourceStatusForValidation(rawSource);
+    if (
+      status &&
+      ["extracted", "partially_merged", "merged"].includes(
+        status.processingStatus,
+      ) &&
+      !artifactSourceIds.has(sourceId)
+    ) {
+      warnings.push({
+        severity: "warning",
+        code: "EXTRACTION_ARTIFACT_MISSING",
+        message: `Source 状态为 ${status.processingStatus}，但 Extraction Artifact 不存在：${sourceId}`,
+        path: ".pkwiki/source_manifest.json",
+        target: sourceId,
+      });
+    }
+  }
+}
+
+function getSourceStatusForValidation(rawEntry: Record<string, unknown>): {
+  processingStatus: SourceProcessingStatus;
+  lifecycleStatus: SourceLifecycleStatus;
+} | null {
+  if (
+    isSourceProcessingStatus(rawEntry.processingStatus) &&
+    isSourceLifecycleStatus(rawEntry.lifecycleStatus)
+  ) {
+    return {
+      processingStatus: rawEntry.processingStatus,
+      lifecycleStatus: rawEntry.lifecycleStatus,
+    };
+  }
+  if (rawEntry.status === "registered") {
+    return { processingStatus: "registered", lifecycleStatus: "active" };
+  }
+  return null;
+}
+
+function validateRunArtifacts(
+  vaultRoot: string,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[],
+): void {
+  const runsRoot = join(vaultRoot, ".pkwiki/runs");
+  if (!existsSync(runsRoot) || !statSync(runsRoot).isDirectory()) {
+    return;
+  }
+  let sourceManifest: Record<string, unknown>;
+  try {
+    sourceManifest = readSourceManifest(vaultRoot);
+  } catch {
+    return;
+  }
+
+  for (const directory of readdirSync(runsRoot)) {
+    const runDirectory = join(runsRoot, directory);
+    if (!statSync(runDirectory).isDirectory()) {
+      continue;
+    }
+    const runPath = join(runDirectory, "run.json");
+    const planPath = join(runDirectory, "merge-plan.json");
+    const contextPath = join(runDirectory, "context-pack.json");
+    const contextPack = existsSync(contextPath)
+      ? validateContextPackArtifact(
+          vaultRoot,
+          directory,
+          contextPath,
+          sourceManifest,
+          errors,
+          warnings,
+        )
+      : null;
+    const hasRun = existsSync(runPath);
+    const hasPlan = existsSync(planPath);
+    if (!hasRun && !hasPlan && contextPack) {
+      continue;
+    }
+    if (!hasRun || !hasPlan) {
+      if (existsSync(contextPath) && !contextPack) {
+        continue;
+      }
+      errors.push({
+        severity: "error",
+        code: "RUN_ARTIFACT_MISSING",
+        message: `Run 缺少 run.json 或 merge-plan.json：${directory}`,
+        path: relative(vaultRoot, runDirectory),
+      });
+      continue;
+    }
+
+    try {
+      const run = parseRunRecord(JSON.parse(readFileSync(runPath, "utf8")));
+      const plan = parseMergePlan(JSON.parse(readFileSync(planPath, "utf8")));
+      if (run.runId !== plan.runId) {
+        errors.push({
+          severity: "error",
+          code: "RUN_ID_MISMATCH",
+          message: `Run Record 与 MergePlan runId 不一致：${directory}`,
+          path: relative(vaultRoot, runDirectory),
+        });
+      }
+      if (contextPack && contextPack.runId !== run.runId) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_RUN_ID_MISMATCH",
+          message: `Context Pack 与 Run Record runId 不一致：${directory}`,
+          path: relative(vaultRoot, contextPath),
+        });
+      }
+      if (contextPack && contextPack.workflow !== "merge") {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_WORKFLOW_MISMATCH",
+          message: `Merge Run 只能关联 merge Context Pack：${directory}`,
+          path: relative(vaultRoot, contextPath),
+        });
+      }
+      if (run.status !== "completed") {
+        continue;
+      }
+
+      const coveragePath = join(runDirectory, "coverage.json");
+      if (!existsSync(coveragePath)) {
+        errors.push({
+          severity: "error",
+          code: "RUN_COVERAGE_MISSING",
+          message: `completed Run 缺少 coverage.json：${run.runId}`,
+          path: relative(vaultRoot, runDirectory),
+        });
+        continue;
+      }
+      const coverage = parseCoverageArtifact(
+        JSON.parse(readFileSync(coveragePath, "utf8")),
+      );
+      if (coverage.runId !== run.runId) {
+        errors.push({
+          severity: "error",
+          code: "RUN_COVERAGE_ID_MISMATCH",
+          message: `Coverage 与 Run Record runId 不一致：${directory}`,
+          path: relative(vaultRoot, coveragePath),
+        });
+      }
+      validateCoverageReferences(
+        vaultRoot,
+        coverage.entries,
+        sourceManifest,
+        errors,
+        relative(vaultRoot, coveragePath),
+      );
+      for (const [sourceId, expectedStatus] of Object.entries(
+        coverage.sourceStatuses,
+      )) {
+        const source = sourceManifest[sourceId];
+        if (
+          isRecord(source) &&
+          source.processingStatus !== expectedStatus
+        ) {
+          warnings.push({
+            severity: "warning",
+            code: "RUN_SOURCE_STATUS_MISMATCH",
+            message: `Coverage 与 Source processingStatus 不一致：${sourceId}`,
+            path: relative(vaultRoot, coveragePath),
+            target: sourceId,
+          });
+        }
+      }
+    } catch (error) {
+      errors.push({
+        severity: "error",
+        code: "INVALID_RUN_ARTIFACT",
+        message: error instanceof Error ? error.message : String(error),
+        path: relative(vaultRoot, runDirectory),
+      });
+    }
+  }
+}
+
+function validateContextPackArtifact(
+  vaultRoot: string,
+  directory: string,
+  contextPath: string,
+  sourceManifest: Record<string, unknown>,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[],
+): ContextPack | null {
+  const path = relative(vaultRoot, contextPath);
+  try {
+    const contextPack = parseContextPack(
+      JSON.parse(readFileSync(contextPath, "utf8")),
+    );
+    if (basename(getRunDirectory(contextPack.runId)) !== directory) {
+      errors.push({
+        severity: "error",
+        code: "CONTEXT_RUN_DIRECTORY_MISMATCH",
+        message: `Context Pack runId 与目录不一致：${contextPack.runId}`,
+        path,
+      });
+    }
+    for (const source of contextPack.sources) {
+      if (!isRecord(sourceManifest[source.sourceId])) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_SOURCE_NOT_FOUND",
+          message: `Context Pack 引用未登记 Source：${source.sourceId}`,
+          path,
+          target: source.sourceId,
+        });
+      }
+    }
+    const wikiRoot = readVaultConfig(vaultRoot).wikiRoot;
+    for (const page of contextPack.pages) {
+      if (!isSafeContextPagePath(vaultRoot, wikiRoot, page.path)) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_PAGE_PATH_INVALID",
+          message: `Context Pack Page 路径非法：${page.path}`,
+          path,
+          target: page.path,
+        });
+        continue;
+      }
+      const absolutePath = join(vaultRoot, page.path);
+      if (!existsSync(absolutePath) || !statSync(absolutePath).isFile()) {
+        errors.push({
+          severity: "error",
+          code: "CONTEXT_PAGE_NOT_FOUND",
+          message: `Context Pack Page 不存在：${page.path}`,
+          path,
+          target: page.path,
+        });
+        continue;
+      }
+      if (computeSha256(absolutePath) !== page.checksum) {
+        warnings.push({
+          severity: "warning",
+          code: "CONTEXT_PAGE_CHECKSUM_STALE",
+          message: `Context Pack Page checksum 已过期：${page.path}`,
+          path,
+          target: page.path,
+        });
+      }
+    }
+    return contextPack;
+  } catch (error) {
+    errors.push({
+      severity: "error",
+      code: "INVALID_CONTEXT_PACK",
+      message: error instanceof Error ? error.message : String(error),
+      path,
+    });
+    return null;
+  }
+}
+
+function isSafeContextPagePath(
+  vaultRoot: string,
+  wikiRoot: string,
+  path: string,
+): boolean {
+  if (
+    path === "" ||
+    isAbsolute(path) ||
+    path.includes("\\") ||
+    path.includes("\0") ||
+    !path.startsWith(`${wikiRoot}/`) ||
+    !path.endsWith(".md")
+  ) {
+    return false;
+  }
+  const absoluteWikiRoot = resolve(vaultRoot, wikiRoot);
+  const pagePath = resolve(vaultRoot, path);
+  const relativePath = relative(absoluteWikiRoot, pagePath);
+  return (
+    relativePath !== "" &&
+    !relativePath.startsWith("..") &&
+    !isAbsolute(relativePath)
+  );
+}
+
+function validateCoverageReferences(
+  vaultRoot: string,
+  entries: Array<{ sourceId: string; itemId: string }>,
+  sourceManifest: Record<string, unknown>,
+  errors: ValidationIssue[],
+  path: string,
+): void {
+  const itemCache = new Map<string, Set<string>>();
+  for (const entry of entries) {
+    const source = sourceManifest[entry.sourceId];
+    if (!isRecord(source)) {
+      errors.push({
+        severity: "error",
+        code: "RUN_COVERAGE_SOURCE_NOT_FOUND",
+        message: `Coverage 引用未登记 Source：${entry.sourceId}`,
+        path,
+      });
+      continue;
+    }
+    let items = itemCache.get(entry.sourceId);
+    if (!items) {
+      const artifactPath = join(
+        vaultRoot,
+        "extracted/data",
+        `${sourceIdToFileName(entry.sourceId)}.json`,
+      );
+      if (!existsSync(artifactPath)) {
+        errors.push({
+          severity: "error",
+          code: "RUN_COVERAGE_EXTRACTION_MISSING",
+          message: `Coverage Source 缺少 Extraction Artifact：${entry.sourceId}`,
+          path,
+        });
+        continue;
+      }
+      const artifact = readExtractionArtifact(artifactPath);
+      items = new Set(artifact.items.map((item) => item.itemId));
+      itemCache.set(entry.sourceId, items);
+    }
+    if (!items.has(entry.itemId)) {
+      errors.push({
+        severity: "error",
+        code: "RUN_COVERAGE_ITEM_NOT_FOUND",
+        message: `Coverage 引用未知 Information Item：${entry.sourceId} ${entry.itemId}`,
+        path,
+      });
+    }
   }
 }
 

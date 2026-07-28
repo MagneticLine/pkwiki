@@ -14,7 +14,9 @@
     "@pkwiki/core": "workspace:*",
     "@pkwiki/git": "workspace:*",
     "@pkwiki/indexer": "workspace:*",
+    "@pkwiki/merge": "workspace:*",
     "@pkwiki/patch": "workspace:*",
+    "@pkwiki/search": "workspace:*",
     "@pkwiki/validator": "workspace:*"
   }
 }

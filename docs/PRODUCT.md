@@ -2,37 +2,53 @@
 
 ## 1. 产品定位
 
-`pkwiki` 是一个面向 Agent 的个人 LLM Wiki 工具箱。
+`pkwiki` 是一个本地优先、文件为真相源、由 Agent 驱动的个人知识编译与维护系统。
 
-它不是笔记软件、传统 Wiki 网站或 RAG 平台，而是一套让 Agent 能够安全维护个人知识库的确定性工具层。Human Maintainer 提供素材、规则和审查；Agent 负责读取素材、规划修改、维护 Wiki；`pkwiki` 负责提供可验证的 Vault 契约、CLI Command、校验、索引、Patch 和版本管理辅助。
+它把聊天记录、文档、日记、经历、健康记录、学习资料和其他零散 Raw Source，增量编译成可追溯、可查询、可演进的 Markdown Wiki。Human Maintainer 拥有知识和最终决定权；Agent 负责提取、定位、规划、合并、查询和维护；确定性工具负责建立契约、限制写入、校验结果并留下审计记录。
 
-## 2. 第一用户
+`pkwiki` 不是单一 CLI 包，也不是只有模型调用的聊天应用。完整产品由三部分组成：
 
-`pkwiki` 的第一用户是 Agent。
+1. 可被不同 Agent 调用的确定性知识工具。
+2. 面向 Wiki 场景的 Agent Harness 应用。
+3. CLI、MCP、HTTP、本地 Web UI 和静态站点等外部入口。
 
-这意味着：
+一句话表达产品价值：
 
-- CLI Command 必须稳定、可解析、可自动化。
-- 关键命令必须支持 `--json`。
-- 每次 Agent 操作前应能读取 Vault 状态。
-- 每次 Agent 修改后应能校验结果。
-- 产品设计优先考虑 Agent 不确定性的约束，而不是只考虑人手动使用是否方便。
+> 让零散资料经过可审查的知识编译流程，持续沉淀为人和 Agent 都能使用的长期个人知识库。
 
-Human Maintainer 是第二用户，负责：
+## 2. 用户与操作者
 
-- 提供 Raw Source。
-- 审查 Agent 产物。
-- 决定是否提交和推送。
-- 管理隐私边界。
-- 在必要时直接使用 CLI Command。
+### 2.1 Human Maintainer
+
+Human Maintainer 是最终用户、知识所有者和决策者，负责：
+
+- 提供 Raw Source 和 Vault 目标。
+- 定义隐私、保留、风格和合并规则。
+- 审查 Agent 产物和 Git diff。
+- 回答冲突、不确定性和重要性问题。
+- 决定是否 apply、commit、push 或发布。
+
+### 2.2 Agent
+
+Agent 是主要操作者和机器接口消费者，负责：
+
+- 读取 Vault 状态和规则。
+- 提取并理解 Raw Source。
+- 定位候选 Wiki Page。
+- 生成 MergePlan 和 PatchPlan。
+- 调用确定性命令完成受控修改。
+- 查询 Wiki，并在得到授权时把有价值结果写回。
+- 发现 Wiki Health 问题并提出修复计划。
+
+因此，CLI Command 必须稳定、可解析、可自动化，关键命令必须支持结构化输出。产品设计需要同时满足两个目标：约束 Agent 的不确定性，并让 Human Maintainer 能理解和控制每次实质变更。
 
 ## 3. 核心对象
 
 ### 3.1 Vault
 
-Vault 是完整的个人知识库工作区，不等同于 OKF Bundle。
+Vault 是完整的个人知识工作区，不等同于 OKF Bundle。
 
-标准结构：
+当前 `pkwiki/0.1` 结构：
 
 ```text
 raw/
@@ -44,57 +60,38 @@ system/
 .pkwiki/
 ```
 
-### 3.2 OKF Bundle
-
-OKF Bundle 是外部规范中的知识包概念，通常是一个自包含 Markdown 目录树。
-
-在 `pkwiki` 中：
-
-```text
-wiki/ = OKF-compatible bundle
-```
-
-也就是说，`pkwiki` 使用 OKF 作为 Wiki 层的外部兼容标准，但完整 Vault 还包含 Raw Source、Extracted Source、运行状态和系统规则。
-
-### 3.3 Raw Source
+### 3.2 Raw Source
 
 Raw Source 是 Human Maintainer 提供的原始素材。
 
-规则：
-
 - 默认存放在 `raw/`。
 - Agent 不允许修改原始内容。
-- Agent 可以登记、复制或引用 Raw Source。
-- 如果需要清洗、提取、总结，应生成 Extracted Source。
+- `pkwiki ingest` 可以复制、登记和校验 Raw Source。
+- 清洗、OCR、转写、分块、提取和总结必须进入 Extracted Source。
 
-### 3.4 Extracted Source
+### 3.3 Extracted Source
 
-Extracted Source 是从 Raw Source 得到的中间产物。
-
-规则：
+Extracted Source 是 Raw Source 和 Wiki 之间的工作层。
 
 - 默认存放在 `extracted/`。
-- Agent 可以写入和更新。
-- 用于记录 OCR、转写、分块、摘要、事实提取、实体提取、疑问和不确定性。
-- 它不是最终知识层。
+- 保存归一化内容、信息单元、证据、不确定性和候选目标。
+- Agent 可以在 Harness 约束下更新。
+- 它不是长期知识事实的最终来源。
 
-### 3.5 Wiki
+### 3.4 Wiki
 
-Wiki 是长期稳定知识层。
-
-规则：
+Wiki 是长期稳定知识层，由 Wiki Page 组成。
 
 - 默认存放在 `wiki/`。
-- 由 Wiki Page 组成。
-- 兼容 OKF Bundle。
-- Agent 可以修改，但修改必须受 Harness 约束。
-- 每次实质修改都应能被 Git diff 审查，并最终由 Human Maintainer 决定是否 commit。
+- 兼容 OKF Bundle 的基本目录与 Markdown 约定。
+- Agent 只能通过受控修改流程写入。
+- 每次实质修改都必须可校验、可追溯、可通过 Git diff 审查。
 
-### 3.6 Wiki Page
+OKF 是 Wiki 层的外部兼容目标，不是完整 Vault 的内部数据模型。`pkwiki` profile 才是 Vault、Source、Merge 和 Harness 的产品契约。
 
-Wiki Page 是 Wiki 中的单个长期知识单元。
+### 3.5 Wiki Page
 
-页面必须包含 `pkwiki/0.1` profile 的 YAML frontmatter：
+Wiki Page 是 Wiki 中的单个长期知识单元。页面必须包含 `pkwiki/0.1` profile 的 YAML frontmatter：
 
 ```yaml
 ---
@@ -117,173 +114,179 @@ tags:
 ---
 ```
 
-## 4. 终极质量目标
+### 3.6 Managed Artifact
 
-`pkwiki` 的长期质量目标是做好 Source-to-Wiki Merge。
+Managed Artifact 是需要被长期保存并供人直接复用的原始文件，例如简历、成绩单、证书、申请材料和项目成果。
+
+Managed Artifact 与 Raw Source 相关但不等同：Raw Source 服务知识追溯，Managed Artifact 服务文件归档和未来取用。该能力属于后续产品范围，在 `pkwiki/0.1` 中暂不增加必需目录，后续通过独立 Feature Spec 决定目录、版本和引用关系。
+
+## 4. 核心质量目标
+
+### 4.1 Source-to-Wiki Merge
 
 当 Agent 拿到一份 Raw Source 时，它应该能够：
 
-1. 理解这份素材属于什么主题、领域和时间范围。
-2. 找到已有 Wiki 中最相关的页面。
-3. 通过目录、索引、frontmatter、manifest、搜索和 Markdown links 渐进定位需要修改的位置。
-4. 判断是创建新页面、更新旧页面、拆分页面，还是只生成 Extracted Source。
-5. 保证素材中的重要信息没有遗漏。
-6. 保证新增内容有来源引用。
-7. 保证没有把不确定推断写成确定事实。
-8. 保证多页面级联修改后仍然链接正确、结构健康、可审查。
+1. 理解素材主题、领域、时间范围、隐私和用途。
+2. 把素材拆成带稳定标识和证据的信息单元。
+3. 通过索引、frontmatter、manifest、全文搜索和链接渐进定位候选页面。
+4. 判断创建、更新、拆分、链接、延后或舍弃。
+5. 保证重要信息没有被无记录地遗漏。
+6. 保证新增内容能追溯到 Source ID，必要时追溯到具体信息单元或 chunk。
+7. 保证不确定推断不会被写成确定事实。
+8. 保证跨页面级联修改后链接、索引和结论仍然一致。
+9. 让 Human Maintainer 能审查 Agent 为什么这样处理每个重要信息单元。
 
-这个目标不能只靠模型能力完成，必须依赖 Harness。
+这个目标不能只依赖模型能力，必须由 Harness、结构化计划、确定性校验和真实场景 eval 共同保障。
 
-另一个长期质量目标是 Wiki Health。
+### 4.2 Compounding Knowledge
 
-AI 维护的 Wiki 会像长期开发项目一样出现冗余、过时、坏味道和矛盾内容。因此 `pkwiki` 后期需要提供 Self-maintenance 能力，让 Agent 能在 Harness 约束下持续检查并修复 Wiki Health。
+Wiki 不应只在摄入时有用。Agent 应能基于 Wiki 查询历史信息，并把经 Human Maintainer 认可的新结论、回答和经验重新写回，使知识在长期使用中持续复利。
 
-典型问题包括：
+对应两个正式工作流：
 
-- 多个 Wiki Page 表达同一概念，产生重复和分叉。
-- 旧页面没有被新事实更新。
-- 不同页面之间存在矛盾 claim。
-- Markdown links 断裂。
-- 页面过长，已经应该拆分。
-- 页面没有被索引或其他页面引用。
-- 新增 claim 缺少 source 引用。
-- 临时推断被写成长期事实。
+- Query：只读检索和回答，默认给出 Wiki Page 和 Source 引用。
+- File-back：把有长期价值的回答或运行结果重新纳入 Source-to-Wiki Merge，而不是直接绕过规则写 Wiki。
 
-Self-maintenance 的原则：
+### 4.3 Adaptive Maintenance
+
+Agent 应通过版本化规则、运行记录、用户反馈和回归 eval 逐渐符合当前 Vault 的目的与风格。
+
+早期不做模型微调。偏好学习优先沉淀为：
+
+- `system/MERGE_POLICY.md`
+- `system/STYLE_GUIDE.md`
+- `system/PAGE_TYPES.md`
+- `system/PRIVACY_RULES.md`
+- 可复用的已接受和已拒绝案例
+
+Human Maintainer 的一次纠正可以只修当前结果；具有普遍性的纠正应经过确认后更新规则或 eval，避免同类错误再次发生。
+
+### 4.4 Wiki Health
+
+长期 Wiki 会出现重复、过时、矛盾、断链、孤儿页面、过长页面和缺少来源的 claim。Self-maintenance 必须遵循：
 
 - 先检测，再提出修复计划。
-- 优先生成可审查的 PatchPlan。
-- 不允许 Agent 自由“整理整个 Wiki”。
-- 修复后必须运行 validate。
-- 实质修改必须通过 Git diff 审查。
+- 修复使用可审查的 PatchPlan。
+- 不允许 Agent 自由整理整个 Wiki。
+- 修复后必须 validate 和 diff。
 
-## 5. Harness 的职责
+## 5. Harness 的产品职责
 
-Harness 是 `pkwiki` 的核心价值。
-
-它不是简单的命令包装，而是面向 Wiki 维护场景的质量适配层。类似 coding agent 会为软件开发补充搜索、编辑、测试、diff、回滚和上下文管理能力，`pkwiki` 的 Harness 也需要围绕知识库维护补充专门能力。
+Harness 是 `pkwiki` 的核心产品层，不只是命令包装。
 
 它负责：
 
-- 建立 Vault 契约。
-- 提供 CLI Command。
-- 让 Agent 能读取状态。
-- 校验结构和规则。
-- 维护 source/page/chunk manifest。
-- 约束 Agent 修改方式。
-- 生成可审查 diff。
-- 支持版本管理。
-- 支持 Wiki Health 检查和 Self-maintenance。
-- 帮助 Agent 在有限上下文内定位相关 Wiki Page。
-- 帮助 Agent 判断 Source-to-Wiki Merge 涉及哪些页面和链接。
-- 帮助 Agent 检查素材是否被完整、正确、可追溯地合并。
-- 帮助 Agent 识别跨页面级联修改后的不一致。
+- 根据 Vault 规则构建有限上下文的 Context Pack。
+- 编排 extraction、candidate location、merge、query、file-back 和 maintenance 工作流。
+- 管理一次运行的输入、模型、上下文、计划、工具调用、结果和反馈。
+- 要求 Agent 输出结构化 Extraction、MergePlan 和 PatchPlan。
+- 调用确定性工具执行 search、validate、index、apply-patch 和 diff。
+- 在冲突、隐私、不确定性和越权写入时停止并请求确认。
+- 聚合完整性、引用、级联修改和 Wiki Health 检查。
+- 通过 dogfood、失败样本和 eval 持续改进规则与工具。
 
-Harness 会随着 dogfood 和真实素材摄入不断调整。早期不预设完整方案，而是优先把可观察、可验证、可迭代的工具接口做出来。
+Harness Core 保持 Agent Runtime 中立。Pi 是第一个正式 Runtime Adapter，用于提供模型调用、Agent loop、会话和工具执行能力；后续可以增加其他 Runtime Adapter。MCP、HTTP 和 Web UI 是 Harness 的外部入口，不等同于 Harness 本身。
 
-它不负责：
+Harness 不负责：
 
-- 替代 Agent Runtime。
-- 绑定 Pi、Claude Code、OpenClaw 或任何单一 Agent 框架。
-- 替代 Human Maintainer 做最终判断。
+- 替代 Human Maintainer 做最终价值判断。
 - 保证模型推理永远正确。
+- 让 `pkwiki` core 绑定单一模型供应商或 Agent Runtime。
+- 自动 commit、push 或公开发布敏感资料。
 
 ## 6. 核心工作流
 
-### 6.1 初始化
+### 6.1 Initialize
 
 ```text
 Human Maintainer -> pkwiki init -> Vault
 ```
 
-目标：创建一个标准 Vault，让 Agent 能识别和操作。
-
-### 6.2 状态读取
+### 6.2 Ingest
 
 ```text
-Agent -> pkwiki status --json -> 当前 Vault 状态
+Raw Source -> register -> immutable raw copy -> Extracted Source template
 ```
 
-目标：让 Agent 工作前知道当前目录、profile、文件数量、manifest 和 Git 状态。
-
-### 6.3 校验
+### 6.3 Extract And Locate
 
 ```text
-Agent -> pkwiki validate --json -> error / warning
+Raw Source -> normalize/chunk/extract -> Context Pack -> candidate Wiki Pages
 ```
 
-目标：让 Agent 在修改前后确认 Vault 是否仍然合规。
-
-### 6.4 素材摄入
+### 6.4 Merge
 
 ```text
-Human Maintainer 提供素材
-Agent 或 Human Maintainer 调用 pkwiki ingest
-Raw Source 登记到 manifest
-生成 Extracted Source 模板
+Extraction -> MergePlan -> PatchPlan -> apply -> validate -> diff -> review
 ```
 
-目标：把素材纳入可追溯的 Source 管理。
-
-### 6.5 合并入 Wiki
+### 6.5 Query
 
 ```text
-Agent 读取 status / manifest / extracted / wiki
-Agent 生成 PatchPlan
-pkwiki apply-patch
-pkwiki validate
-Human Maintainer 审查 diff
-Human Maintainer commit / push
+Question -> search/index/link traversal -> Context Pack -> cited answer
 ```
 
-目标：把素材完整、正确、可追溯地合并进长期 Wiki。
-
-### 6.6 自维护
+### 6.6 File-back
 
 ```text
-Agent 读取 status / validate / index / manifest
-Agent 发现 Wiki Health 问题
-Agent 生成修复计划
-pkwiki apply-patch
-pkwiki validate
-Human Maintainer 审查 diff
-Human Maintainer commit / push
+Valuable answer/run output -> new Source -> controlled Merge workflow
 ```
 
-目标：让长期 Wiki 像代码库一样定期体检和受控维护，减少冗余、过时、坏味道和矛盾。
+### 6.7 Self-maintenance
 
-## 7. MVP 边界
+```text
+Health scan -> repair plan -> PatchPlan -> validate -> diff -> review
+```
 
-第一阶段只做：
+### 6.8 Artifact Filing
+
+```text
+Reusable original file -> classify/version -> Managed Artifact -> Wiki reference
+```
+
+Artifact Filing 是后续范围，不属于当前 `pkwiki/0.1` 的必需能力。
+
+## 7. 当前产品状态
+
+0001 到 0009 已完成 Merge Foundations 的确定性工具和协议：
 
 ```text
 pkwiki init
 pkwiki status
 pkwiki validate
+pkwiki ingest
+pkwiki chunk
+pkwiki register-extraction
+pkwiki index
+pkwiki list-pages
+pkwiki read-page
+pkwiki search
+pkwiki build-context
+pkwiki register-merge-plan
+pkwiki finalize-merge
+pkwiki apply-patch
+pkwiki diff
 ```
 
-不做：
+当前尚未完成：
 
-- LLM 调用。
-- Pi 接入。
-- MCP。
-- Web UI。
-- PatchPlan。
-- 自动 ingest。
-- 自动 commit。
-- Self-maintenance。
+- Agent Harness 和 Pi Runtime Adapter。
+- 模型驱动的 extraction、MergePlan、PatchPlan、Query 和 File-back。
+- 完整 Harness Run lifecycle、approval、feedback 和 eval。
+- MCP、HTTP、本地 Web UI 和静态站点输出。
+- Wiki Health 和 Self-maintenance。
 
-这样做的原因是：后续所有 Agent 行为都依赖一个可识别、可读取、可校验的 Vault。
+Merge Foundations 已通过低敏端到端验收。下一里程碑是 Agent Harness MVP。
 
 ## 8. 非目标
 
 `pkwiki` 不追求成为：
 
 - Obsidian 替代品。
-- Wiki.js / MediaWiki 替代品。
+- Wiki.js 或 MediaWiki 替代品。
 - 全功能 RAG 平台。
 - 云同步服务。
-- 多 Agent 编排框架。
-- 专属 Pi Agent 实现。
+- 通用多 Agent 编排框架。
+- 自动发布个人隐私数据的托管平台。
 
-它应保持为 Agent 可调用的个人知识库工具层。
+产品可以使用 Pi 等 Agent Runtime，但确定性内核和 Vault 契约必须保持可移植。

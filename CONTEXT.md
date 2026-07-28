@@ -1,110 +1,145 @@
 # pkwiki
 
-`pkwiki` 是一个面向个人 LLM Wiki 的工具上下文。这里记录产品领域语言，避免 CLI、Agent、Vault、Source 等概念在需求和实现中混用。
+`pkwiki` 是一个由 Agent 驱动的个人知识编译与维护产品。这里记录领域语言，避免 CLI、Agent、Vault、Source、Harness 和 Wiki 等概念混用。
 
 ## Language
 
+**Human Maintainer**:
+Vault 的知识所有者、最终用户和决策者，负责提供素材、定义规则并审查实质变更。
+_Avoid_: 第二用户, 终端用户, 普通用户
+
+**Agent**:
+`pkwiki` 的主要操作者和机器接口消费者，负责提取、定位、规划、查询和维护，但不拥有最终决定权。
+_Avoid_: 最终用户, 模型, LLM, 助手
+
 **CLI Command**:
-用户或 Agent 在终端调用的确定性 `pkwiki` 命令，例如 `pkwiki init`、`pkwiki status`、`pkwiki validate`。MVP 阶段的“pkwiki 指令”统一指 CLI Command。
-_Avoid_: 指令, prompt, Agent 指令
+用户或 Agent 在终端调用的确定性 `pkwiki` 命令。
+_Avoid_: 指令, prompt, Agent Instruction
 
 **Agent Instruction**:
-给 Claude Code、OpenClaw、Pi 或 MCP 客户端读取的操作规则，用于约束 Agent 如何理解和调用 `pkwiki`。它不是 CLI Command。
+约束 Agent 如何理解 Vault 和调用工具的操作规则，不是 CLI Command。
 _Avoid_: pkwiki 指令, CLI 指令
 
 **Feature Spec**:
-`pkwiki` 仓库中针对一个独立开发过程或模块的需求、设计和任务计划。Feature Spec 放在 `pkwiki/specs/` 下，随产品代码一起版本化。
-Feature Spec 编号表示开发批次，不等同于路线图阶段编号；一个路线图阶段可以拆成多个 Feature Spec。
-_Avoid_: 根目录开发计划, 临时 TODO, 普通 docs, 路线图阶段编号
-
-**Agent**:
-`pkwiki` 的第一用户。Agent 读取素材、调用 CLI Command、生成或应用受控变更，用于维护个人 Wiki。
-_Avoid_: AI, LLM, 助手
-
-**Human Maintainer**:
-`pkwiki` 的第二用户。Human Maintainer 提供素材、审查结果，并在需要时直接通过终端调用 CLI Command。
-_Avoid_: 用户, 终端用户, 个人用户
+`pkwiki/specs/` 中针对一个独立开发批次维护的需求、设计和任务计划；编号表示批次，不等同于路线图阶段。
+_Avoid_: 路线图阶段, 普通 docs, 临时 TODO
 
 **Vault**:
-由 `pkwiki` 管理的完整个人知识库工作区，包含 `raw/`、`extracted/`、`wiki/`、`outputs/`、`assets/`、`system/` 和 `.pkwiki/`。Vault 不等同于纯 OKF bundle。
-_Avoid_: Wiki, 仓库, bundle
+由 `pkwiki` 管理的完整个人知识工作区，包含 Source、Wiki、规则、派生产物和机器状态。
+_Avoid_: Wiki, 仓库, OKF Bundle
 
 **OKF Bundle**:
-符合 Open Knowledge Format 的自包含知识包，通常表现为一个由 Markdown concept 文档、`index.md` 和可选 `log.md` 组成的目录树。在 `pkwiki` 中，`wiki/` 是 OKF-compatible bundle。
-_Avoid_: Vault, 仓库, 普通 Markdown 文件夹
+符合 Open Knowledge Format 外部约定的自包含知识包；在 `pkwiki` 中，它是 Wiki 层的兼容目标，不代表完整 Vault。
+_Avoid_: Vault, pkwiki profile, 普通 Markdown 文件夹
 
 **Wiki**:
-Vault 中长期稳定的知识层，由 Wiki Page 组成，用于承载从 Raw Source 和 Extracted Source 编译出的长期概念、项目、人物、决策和学习地图。Wiki 位于 `wiki/`，并兼容 OKF Bundle。
-_Avoid_: raw notes, inbox, extracted, 普通笔记
+Vault 中长期稳定的知识层，由 Wiki Page 组成，用于承载从 Source 编译出的长期知识。
+_Avoid_: Vault, Raw Source, Extracted Source, 普通笔记
 
 **Wiki Page**:
-Wiki 中的单个 Markdown concept 页面，必须包含 `pkwiki/0.1` profile 要求的 YAML frontmatter。Wiki Page 是 Agent 最终维护的长期知识单元。
+Wiki 中带 `pkwiki` profile frontmatter 的单个长期知识单元。
 _Avoid_: Source, Extracted Source, 临时笔记
 
 **Raw Source**:
-Human Maintainer 提供的原始素材，存放在 `raw/` 下，默认不可被 Agent 修改。Agent 可以登记或复制 Raw Source，但不能改写其原始内容。
-_Avoid_: Wiki Page, Extracted Source, 知识页
+Human Maintainer 提供的原始素材，默认不可被 Agent 改写。
+_Avoid_: Wiki Page, Extracted Source, Managed Artifact
 
 **Extracted Source**:
-从 Raw Source 归一化、提取或总结出的中间产物，存放在 `extracted/` 下。Extracted Source 是 Agent 可写的工作层，用于连接 Raw Source 和 Wiki。
+从 Raw Source 归一化和提取出的工作层，用于承载信息单元、证据、不确定性和合并准备。
 _Avoid_: Raw Source, Wiki Page, 最终知识
 
+**Managed Artifact**:
+需要长期保存并供人直接复用的原始文件，例如简历、证书和申请材料；它与 Raw Source 可以关联，但目的不是知识提取。
+_Avoid_: Raw Source, assets, Wiki Page
+
 **Source ID**:
-Raw Source 在 Vault 内的稳定标识，格式为 `src:YYYY-MM-DD-slug`。Source ID 用于 manifest、Extracted Source、Wiki Page 引用和后续 Source-to-Wiki Merge 追溯。
-_Avoid_: 文件名, 路径, page id
+Raw Source 在 Vault 内的稳定标识，用于 manifest、extraction、Wiki 引用和 merge 追溯。
+_Avoid_: 文件名, 路径, Page ID
 
 **Source Manifest**:
-`.pkwiki/source_manifest.json` 中的机器可读 source 登记表，记录 Source ID、Raw Source 路径、Extracted Source 路径、类型、领域、checksum 和状态。Source 记录不应因 Raw Source 删除而直接消失，实际文件缺失时应进入 `deleted` 状态以保留审计线索。
-_Avoid_: index, Wiki, 清单
+Raw Source 的机器可读登记表，保存身份、位置、完整性、处理状态和生命周期状态。
+_Avoid_: Page Manifest, Search Index, Source 文件
+
+**Source Processing Status**:
+Source 在知识编译流程中的进度，例如 registered、extracted、partially merged 或 merged。
+_Avoid_: Source Lifecycle Status, 文件存在状态
+
+**Source Lifecycle Status**:
+Source 在 Vault 中的保留状态，例如 active、archived 或 deleted；它与处理进度相互独立。
+_Avoid_: Source Processing Status, merge status
 
 **Page Manifest**:
-`.pkwiki/page_manifest.json` 中的机器可读 Wiki Page 登记表，记录页面 id、路径、标题、类型、领域、来源引用、标签、checksum 和索引时间。Page Manifest 是可再生成的索引产物，不是 Wiki Page 本身。
+Wiki Page 的可再生成机器索引，不承载长期知识事实。
 _Avoid_: Source Manifest, Search Index, Wiki Page
 
 **Search Index**:
-`outputs/index.json` 中面向 Agent 查询的 Wiki 索引，聚合页面摘要、链接、标题层级、按类型/领域/source 的反向映射和 backlinks。Search Index 用于定位候选页面，不承载长期知识事实。
-_Avoid_: Page Manifest, Wiki, 全文数据库
+面向 Agent 和工具查询的可再生成 Wiki 索引，用于定位候选页面和链接关系。
+_Avoid_: Page Manifest, Wiki, 全文知识库
 
-**Quality Gate**:
-开发过程中必须通过的自动检查。0002 中 Quality Gate 指真实 ESLint、构建和测试，而不是占位脚本。
-_Avoid_: TODO lint, 手工检查
+**Context Pack**:
+一次 Agent Run 实际读取的有限 Source、Wiki、链接和规则集合，用于说明模型在判断时看到了什么。
+_Avoid_: 整个 Vault, prompt, Search Index
 
 **Harness**:
-约束并增强 Agent 如何读取、查找、计划、修改和校验 Vault 的工具层。Harness 的目标是降低自由式 vibe coding 带来的不确定性，并针对 Wiki 维护场景补足模型在定位、完整性、引用、级联修改和质量检查上的能力短板。
-_Avoid_: Agent Runtime, Pi, Claude Code
+编排知识工作流、管理 Context Pack 和 Run、约束 Agent 输出并调用确定性工具的产品运行层。
+_Avoid_: Agent Runtime, Pi, CLI wrapper
 
-**PatchPlan**:
-Agent 生成、`pkwiki` 应用的结构化修改计划。PatchPlan 用 JSON 表达要修改哪些 Wiki Page、执行哪些有限操作、基于哪些 source 和可选 checksum。PatchPlan 是受控修改协议，不是自然语言建议，也不是 Git diff。
-_Avoid_: prompt, 随意编辑, Git diff, commit
+**Agent Runtime**:
+提供模型调用、Agent loop、会话和工具执行的通用运行环境。
+_Avoid_: Harness, 模型供应商, MCP
 
-**apply-patch**:
-读取 PatchPlan 并用确定性逻辑应用修改的 CLI Command。`pkwiki apply-patch` 负责路径安全、checksum、operation 语义和 apply 后校验，但不负责自动 commit 或 push。
-_Avoid_: Agent 自己写文件, git apply, 自动提交
+**Runtime Adapter**:
+把 Harness 所需的生成、会话和工具能力映射到具体 Agent Runtime 的适配边界。
+_Avoid_: Harness Core, Agent Instruction
 
-**Git Diff Review**:
-PatchPlan 应用后的只读变更审查过程，用于让 Human Maintainer 和 Agent 理解当前 Vault 相对 Git worktree 的变更范围、文件状态、区域分类和 diff 摘要。它不负责提交、推送、回滚，也不替代 Git。
-_Avoid_: commit, push, undo, 版本管理系统
+**Run**:
+Harness 执行一次 ingest、merge、query、file-back 或 maintenance 工作流的完整生命周期。
+_Avoid_: Git commit, Agent session, CLI Command
 
-**diff**:
-读取 Git worktree 并输出 Vault 变更摘要的 CLI Command。`pkwiki diff` 面向 Human Maintainer 输出可扫读摘要，`pkwiki diff --json` 面向 Agent 输出结构化变更信息。
-_Avoid_: Git diff 原生命令, apply-patch, commit
+**Run Record**:
+记录一次 Run 的输入、Context Pack、结构化计划、工具结果、审查和反馈的审计产物。
+_Avoid_: Git history, log message, Search Index
 
 **Source-to-Wiki Merge**:
-将一份 Raw Source 或 Extracted Source 中的信息完整、正确、可追溯地合并进 Wiki 的过程。它是 `pkwiki` 的长期质量目标，不等同于简单摘要或文件复制。
+把 Source 中的重要信息完整、正确、可追溯地合并进 Wiki 的知识编译过程。
 _Avoid_: ingest, summarize, import
 
+**Information Item**:
+从 Source 中提取并带稳定标识的事实、事件、实体、决策、问题或不确定性，是 coverage 的最小处理单元。
+_Avoid_: chunk, Wiki Page, 自由文本摘要
+
 **MergePlan**:
-Agent 在生成 PatchPlan 前产出的合并决策计划。MergePlan 记录 sourceIds、候选 Wiki Page、每个信息单元的处理决策、隐私和不确定性说明。PatchPlan 回答“怎么改文件”，MergePlan 回答“为什么这样合并”。
+Agent 对候选页面、信息取舍、冲突、隐私和 coverage 作出的结构化合并决策。
 _Avoid_: PatchPlan, prompt, 摘要
 
 **Merge Coverage**:
-Extracted Source 中记录素材信息处理结果的覆盖表，用于说明哪些 facts/events/entities 已合并、延后、舍弃或需要用户确认。Merge Coverage 的目标是避免 Agent 无声丢失重要信息。
+记录每个重要 Information Item 已合并、延后、舍弃或需要确认的处理结果。
 _Avoid_: 测试覆盖率, Git diff, 简单摘要
 
+**PatchPlan**:
+Agent 生成、确定性工具应用的结构化文件修改计划，回答怎样修改文件。
+_Avoid_: MergePlan, 自由编辑, Git diff
+
+**apply-patch**:
+校验并应用 PatchPlan 的 CLI Command，不负责自动 commit 或 push。
+_Avoid_: Agent 直接写文件, git apply, 自动提交
+
+**Query**:
+基于 Wiki 和必要 Source 生成带引用回答的只读知识工作流。
+_Avoid_: search, File-back, 临时聊天
+
+**File-back**:
+把有长期价值的回答或运行结果重新登记为 Source，并进入受控 Merge 流程。
+_Avoid_: 直接写 Wiki, 保存聊天记录, commit
+
+**Git Diff Review**:
+Human Maintainer 或 Agent 对 Vault worktree 变更范围和内容进行的只读审查。
+_Avoid_: commit, push, rollback
+
 **Wiki Health**:
-Wiki 长期演进后的结构和内容健康状态，包括是否存在冗余、过时、矛盾、断链、孤儿页面、过长页面和缺少来源的 claim。
-_Avoid_: 代码质量, 文档质量, lint
+Wiki 长期演进后的结构和内容健康状态，包括冗余、过时、矛盾、断链、孤儿页面和缺少来源的 claim。
+_Avoid_: 代码质量, 文档排版, validate result
 
 **Self-maintenance**:
-Agent 在 Harness 约束下对 Wiki Health 做持续检查、提出修复计划并应用受控修改的能力。它不是 Agent 自由整理整个知识库。
-_Avoid_: 自动重构, 自动整理, cleanup
+Harness 在 Human Maintainer 控制下检测 Wiki Health、提出修复计划并应用受控修改的能力。
+_Avoid_: 自动重构, 自由整理, cleanup

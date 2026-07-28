@@ -1,8 +1,10 @@
 # 0001 CLI MVP 需求
 
+> 历史术语说明：本文中的“第一用户是 Agent”表示 CLI 优先服务机器操作者。当前产品语言以 `docs/PRODUCT.md` 和 `CONTEXT.md` 为准：Human Maintainer 是最终用户和知识所有者，Agent 是主要操作者和机器接口消费者。
+
 ## 1. 背景
 
-`pkwiki` 的第一用户是 Agent。Agent 在维护 Vault 前，需要可靠地知道：
+`pkwiki` CLI 的主要操作者是 Agent。Agent 在维护 Vault 前，需要可靠地知道：
 
 - 当前目录是不是一个合法 Vault。
 - Vault 的 profile、目录和系统文件是否符合预期。
@@ -195,4 +197,3 @@ JSON 输出必须稳定，不应包含只适合人读的装饰性文本。
 - 删除必需目录后，`validate` 报 error。
 - 制造断链后，`validate` 报 warning。
 - 在 `my-pkm-vault` 上运行 `status` 和 `validate` 可作为 dogfood。
-

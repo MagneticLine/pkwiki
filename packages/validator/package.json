@@ -12,6 +12,8 @@
   "dependencies": {
     "@pkwiki/core": "workspace:*",
     "@pkwiki/indexer": "workspace:*",
+    "@pkwiki/merge": "workspace:*",
+    "@pkwiki/search": "workspace:*",
     "yaml": "^2.6.1"
   }
 }
