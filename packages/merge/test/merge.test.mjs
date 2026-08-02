@@ -192,6 +192,46 @@ test("registerMergePlan 保留前置 Context Pack", () => {
   assert.equal(existsSync(join(runDirectory, "run.json")), true);
 });
 
+test("Harness 模式保留外层 Run Record", () => {
+  const { root, source } = createPreparedVault(["fact"]);
+  const runId = "run:agent-managed";
+  const runDirectory = join(root, ".pkwiki/runs/run-agent-managed");
+  mkdirSync(runDirectory, { recursive: true });
+  const agentRun = {
+    version: "pkwiki.agent-run/0.1",
+    runId,
+    workflow: "plan-ingest",
+    status: "generating",
+  };
+  writeFileSync(join(runDirectory, "run.json"), JSON.stringify(agentRun));
+  writeFileSync(join(runDirectory, "context-pack.json"), "{}\n");
+  const planPath = join(root, "agent-managed-plan.json");
+  writeFileSync(
+    planPath,
+    JSON.stringify(
+      buildPlan(
+        source.sourceId,
+        [
+          {
+            sourceId: source.sourceId,
+            itemId: "fact:f1",
+            decision: "discarded",
+            reason: "测试取舍",
+          },
+        ],
+        runId,
+      ),
+    ),
+  );
+
+  registerMergePlan(root, planPath, { manageRunRecord: false });
+  assert.deepEqual(
+    JSON.parse(readFileSync(join(runDirectory, "run.json"), "utf8")),
+    agentRun,
+  );
+  assert.equal(existsSync(join(runDirectory, "merge-plan.json")), true);
+});
+
 test("registerMergePlan 拒绝重复和未知 coverage", () => {
   const { root, source } = createPreparedVault(["fact"]);
   const duplicatePath = join(root, "duplicate.json");

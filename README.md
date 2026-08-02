@@ -40,6 +40,7 @@ specs/
   0007-extraction-chunk-contract/
   0008-merge-plan-coverage/
   0009-search-context-pack/
+  0010-agent-harness-mvp/
 ```
 
 每个目录包含：

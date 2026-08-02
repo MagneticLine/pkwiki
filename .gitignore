@@ -3,4 +3,5 @@ dist/
 .turbo/
 .DS_Store
 *.log
-
+.env.local
+.env.*.local

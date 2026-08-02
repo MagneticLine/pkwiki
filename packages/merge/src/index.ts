@@ -101,6 +101,10 @@ export type RegisterMergePlanResult = {
   status: "awaiting_apply";
 };
 
+export type MergeRunRecordOptions = {
+  manageRunRecord?: boolean;
+};
+
 export type FinalizeMergeResult = {
   ok: true;
   vaultRoot: string;
@@ -258,6 +262,7 @@ export function parseRunRecord(value: unknown): RunRecord {
 export function registerMergePlan(
   startPath: string,
   planPath: string,
+  options: MergeRunRecordOptions = {},
 ): RegisterMergePlanResult {
   const vault = loadVault(startPath);
   const plan = readMergePlan(resolve(planPath));
@@ -265,8 +270,15 @@ export function registerMergePlan(
 
   const runDirectory = getRunDirectory(plan.runId);
   const absoluteRunDirectory = join(vault.root, runDirectory);
+  const manageRunRecord = options.manageRunRecord ?? true;
   const contextOnlyRun = isContextOnlyRunDirectory(absoluteRunDirectory);
-  if (existsSync(absoluteRunDirectory) && !contextOnlyRun) {
+  const externallyManagedRun =
+    !manageRunRecord && isExternallyManagedRunDirectory(absoluteRunDirectory);
+  if (
+    existsSync(absoluteRunDirectory) &&
+    !contextOnlyRun &&
+    !externallyManagedRun
+  ) {
     throw new MergePlanError(
       "RUN_ALREADY_EXISTS",
       `Run 已存在：${plan.runId}`,
@@ -277,30 +289,29 @@ export function registerMergePlan(
   mkdirSync(temporaryDirectory, { recursive: true });
   const backupDirectory = `${absoluteRunDirectory}.backup-${process.pid}-${Date.now()}`;
   try {
-    if (contextOnlyRun) {
-      copyFileSync(
-        join(absoluteRunDirectory, "context-pack.json"),
-        join(temporaryDirectory, "context-pack.json"),
-      );
+    if (contextOnlyRun || externallyManagedRun) {
+      copyDirectoryFiles(absoluteRunDirectory, temporaryDirectory);
     }
     writeJson(join(temporaryDirectory, "merge-plan.json"), plan);
-    writeJson(join(temporaryDirectory, "run.json"), {
-      version: RUN_RECORD_VERSION,
-      runId: plan.runId,
-      workflow: "merge",
-      status: "awaiting_apply",
-      createdAt: plan.createdAt,
-      updatedAt: plan.createdAt,
-    } satisfies RunRecord);
+    if (manageRunRecord) {
+      writeJson(join(temporaryDirectory, "run.json"), {
+        version: RUN_RECORD_VERSION,
+        runId: plan.runId,
+        workflow: "merge",
+        status: "awaiting_apply",
+        createdAt: plan.createdAt,
+        updatedAt: plan.createdAt,
+      } satisfies RunRecord);
+    }
     mkdirSync(dirname(absoluteRunDirectory), { recursive: true });
-    if (contextOnlyRun) {
+    if (contextOnlyRun || externallyManagedRun) {
       renameSync(absoluteRunDirectory, backupDirectory);
     }
     renameSync(temporaryDirectory, absoluteRunDirectory);
     rmSync(backupDirectory, { recursive: true, force: true });
   } catch (error) {
     if (
-      contextOnlyRun &&
+      (contextOnlyRun || externallyManagedRun) &&
       !existsSync(absoluteRunDirectory) &&
       existsSync(backupDirectory)
     ) {
@@ -327,6 +338,7 @@ export function finalizeMerge(
   startPath: string,
   runId: string,
   now = new Date(),
+  options: MergeRunRecordOptions = {},
 ): FinalizeMergeResult {
   const vault = loadVault(startPath);
   const runDirectory = getRunDirectory(runId);
@@ -380,21 +392,23 @@ export function finalizeMerge(
     join(runDirectory, "coverage.json"),
     `${JSON.stringify(coverageArtifact, null, 2)}\n`,
   );
-  pendingFiles.set(
-    join(runDirectory, "run.json"),
-    `${JSON.stringify(
-      {
-        version: RUN_RECORD_VERSION,
-        runId,
-        workflow: "merge",
-        status: "completed",
-        createdAt: plan.createdAt,
-        updatedAt: finalizedAt,
-      } satisfies RunRecord,
-      null,
-      2,
-    )}\n`,
-  );
+  if (options.manageRunRecord ?? true) {
+    pendingFiles.set(
+      join(runDirectory, "run.json"),
+      `${JSON.stringify(
+        {
+          version: RUN_RECORD_VERSION,
+          runId,
+          workflow: "merge",
+          status: "completed",
+          createdAt: plan.createdAt,
+          updatedAt: finalizedAt,
+        } satisfies RunRecord,
+        null,
+        2,
+      )}\n`,
+    );
+  }
   pendingFiles.set(
     ".pkwiki/source_manifest.json",
     `${JSON.stringify(nextManifest, null, 2)}\n`,
@@ -440,6 +454,22 @@ function isContextOnlyRunDirectory(path: string): boolean {
     entries[0]?.isFile() === true &&
     entries[0]?.name === "context-pack.json"
   );
+}
+
+function isExternallyManagedRunDirectory(path: string): boolean {
+  if (!existsSync(path) || !statSync(path).isDirectory()) {
+    return false;
+  }
+  return existsSync(join(path, "run.json")) && !existsSync(join(path, "merge-plan.json"));
+}
+
+function copyDirectoryFiles(source: string, target: string): void {
+  for (const entry of readdirSync(source, { withFileTypes: true })) {
+    if (!entry.isFile()) {
+      continue;
+    }
+    copyFileSync(join(source, entry.name), join(target, entry.name));
+  }
 }
 
 function validatePlanAgainstVault(vaultRoot: string, plan: MergePlan): ValidatedPlan {

@@ -6,10 +6,19 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "echo \"TODO: agent tests\"",
+    "test": "node --test test/*.test.mjs",
     "lint": "eslint ."
   },
   "dependencies": {
-    "@pkwiki/core": "workspace:*"
+    "@earendil-works/pi-ai": "0.82.1",
+    "@earendil-works/pi-coding-agent": "0.82.1",
+    "@pkwiki/core": "workspace:*",
+    "@pkwiki/git": "workspace:*",
+    "@pkwiki/indexer": "workspace:*",
+    "@pkwiki/merge": "workspace:*",
+    "@pkwiki/patch": "workspace:*",
+    "@pkwiki/search": "workspace:*",
+    "@pkwiki/validator": "workspace:*",
+    "typebox": "1.1.38"
   }
 }

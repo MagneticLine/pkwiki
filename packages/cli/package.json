@@ -11,6 +11,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@pkwiki/agent": "workspace:*",
     "@pkwiki/core": "workspace:*",
     "@pkwiki/git": "workspace:*",
     "@pkwiki/indexer": "workspace:*",

@@ -762,6 +762,22 @@ function validateRunArtifacts(
       : null;
     const hasRun = existsSync(runPath);
     const hasPlan = existsSync(planPath);
+    if (hasRun) {
+      const rawRun = JSON.parse(readFileSync(runPath, "utf8")) as unknown;
+      if (isRecord(rawRun) && rawRun.version === "pkwiki.agent-run/0.1") {
+        validateHarnessRunArtifacts(
+          vaultRoot,
+          directory,
+          runDirectory,
+          rawRun,
+          contextPack,
+          sourceManifest,
+          errors,
+          warnings,
+        );
+        continue;
+      }
+    }
     if (!hasRun && !hasPlan && contextPack) {
       continue;
     }
@@ -862,6 +878,194 @@ function validateRunArtifacts(
         path: relative(vaultRoot, runDirectory),
       });
     }
+  }
+}
+
+function validateHarnessRunArtifacts(
+  vaultRoot: string,
+  directory: string,
+  runDirectory: string,
+  run: Record<string, unknown>,
+  contextPack: ContextPack | null,
+  sourceManifest: Record<string, unknown>,
+  errors: ValidationIssue[],
+  warnings: ValidationIssue[],
+): void {
+  const runPath = relative(vaultRoot, join(runDirectory, "run.json"));
+  const runId = typeof run.runId === "string" ? run.runId : null;
+  const workflow = run.workflow;
+  const status = run.status;
+  if (!runId || !/^run:[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(runId)) {
+    errors.push({
+      severity: "error",
+      code: "AGENT_RUN_INVALID",
+      message: `Agent Run runId 非法：${directory}`,
+      path: runPath,
+    });
+    return;
+  }
+  if (
+    workflow !== "plan-ingest" &&
+    workflow !== "query" &&
+    workflow !== "file-back"
+  ) {
+    errors.push({
+      severity: "error",
+      code: "AGENT_RUN_INVALID",
+      message: `Agent Run workflow 非法：${directory}`,
+      path: runPath,
+    });
+    return;
+  }
+  const statuses = new Set([
+    "created",
+    "preparing",
+    "generating",
+    "planning",
+    "awaiting_approval",
+    "applying",
+    "validating",
+    "completed",
+    "failed",
+    "cancelled",
+  ]);
+  if (typeof status !== "string" || !statuses.has(status)) {
+    errors.push({
+      severity: "error",
+      code: "AGENT_RUN_INVALID",
+      message: `Agent Run status 非法：${directory}`,
+      path: runPath,
+    });
+    return;
+  }
+  if (contextPack && contextPack.runId !== runId) {
+    errors.push({
+      severity: "error",
+      code: "CONTEXT_RUN_ID_MISMATCH",
+      message: `Context Pack 与 Agent Run runId 不一致：${directory}`,
+      path: relative(vaultRoot, join(runDirectory, "context-pack.json")),
+    });
+  }
+  if (
+    contextPack &&
+    ((workflow === "query" && contextPack.workflow !== "query") ||
+      (workflow === "plan-ingest" && contextPack.workflow !== "merge"))
+  ) {
+    errors.push({
+      severity: "error",
+      code: "CONTEXT_WORKFLOW_MISMATCH",
+      message: `Context Pack 与 Agent Run workflow 不一致：${directory}`,
+      path: relative(vaultRoot, join(runDirectory, "context-pack.json")),
+    });
+  }
+
+  if (workflow === "plan-ingest") {
+    validateHarnessMergeRun(
+      vaultRoot,
+      directory,
+      runDirectory,
+      runId,
+      status,
+      sourceManifest,
+      errors,
+    );
+    return;
+  }
+  if (workflow === "query" && status === "completed") {
+    const answerPath = join(runDirectory, "query-answer.json");
+    if (!existsSync(answerPath)) {
+      errors.push({
+        severity: "error",
+        code: "QUERY_ANSWER_MISSING",
+        message: `completed Query Run 缺少 query-answer.json：${runId}`,
+        path: relative(vaultRoot, runDirectory),
+      });
+    }
+    return;
+  }
+  if (workflow === "file-back") {
+    const candidatePath = join(runDirectory, "file-back.md");
+    if (!existsSync(candidatePath)) {
+      errors.push({
+        severity: "error",
+        code: "FILE_BACK_CANDIDATE_MISSING",
+        message: `File-back Run 缺少 file-back.md：${runId}`,
+        path: relative(vaultRoot, runDirectory),
+      });
+    }
+    if (status === "completed" && !existsSync(join(runDirectory, "file-back-result.json"))) {
+      errors.push({
+        severity: "error",
+        code: "FILE_BACK_RESULT_MISSING",
+        message: `completed File-back Run 缺少结果：${runId}`,
+        path: relative(vaultRoot, runDirectory),
+      });
+    }
+  }
+  void warnings;
+}
+
+function validateHarnessMergeRun(
+  vaultRoot: string,
+  directory: string,
+  runDirectory: string,
+  runId: string,
+  status: string,
+  sourceManifest: Record<string, unknown>,
+  errors: ValidationIssue[],
+): void {
+  const planPath = join(runDirectory, "merge-plan.json");
+  if (!existsSync(planPath)) {
+    if (status !== "created" && status !== "preparing" && status !== "generating") {
+      errors.push({
+        severity: "error",
+        code: "MERGE_PLAN_MISSING",
+        message: `Agent Merge Run 缺少 merge-plan.json：${runId}`,
+        path: relative(vaultRoot, runDirectory),
+      });
+    }
+    return;
+  }
+  try {
+    const plan = parseMergePlan(JSON.parse(readFileSync(planPath, "utf8")));
+    if (plan.runId !== runId) {
+      errors.push({
+        severity: "error",
+        code: "RUN_ID_MISMATCH",
+        message: `Agent Run 与 MergePlan runId 不一致：${directory}`,
+        path: relative(vaultRoot, runDirectory),
+      });
+    }
+    if (status !== "completed") {
+      return;
+    }
+    const coveragePath = join(runDirectory, "coverage.json");
+    if (!existsSync(coveragePath)) {
+      errors.push({
+        severity: "error",
+        code: "RUN_COVERAGE_MISSING",
+        message: `completed Agent Merge Run 缺少 coverage.json：${runId}`,
+        path: relative(vaultRoot, runDirectory),
+      });
+      return;
+    }
+    const coverage = parseCoverageArtifact(
+      JSON.parse(readFileSync(coveragePath, "utf8")),
+    );
+    validateCoverageReferences(
+      vaultRoot,
+      coverage.entries,
+      sourceManifest,
+      errors,
+      relative(vaultRoot, coveragePath),
+    );
+  } catch (error) {
+    errors.push({
+      severity: "error",
+      code: "AGENT_RUN_INVALID",
+      message: `Agent Merge Run artifact 非法：${String(error)}`,
+      path: relative(vaultRoot, runDirectory),
+    });
   }
 }
 

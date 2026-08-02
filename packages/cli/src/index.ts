@@ -11,6 +11,15 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  AgentHarness,
+  FakeRuntimeAdapter,
+  HarnessError,
+  PiRuntimeAdapter,
+  loadModelConfig,
+  summarizeModelConfig,
+  type AgentCommandResult,
+} from "@pkwiki/agent";
+import {
   OKF_VERSION,
   PKWIKI_PROFILE,
   SourceContractError,
@@ -47,6 +56,7 @@ import { validateVault } from "@pkwiki/validator";
 
 type ParsedArgs = {
   command?: string;
+  subcommand?: string;
   path?: string;
   json: boolean;
   force: boolean;
@@ -60,6 +70,10 @@ type ParsedArgs = {
   language?: string;
   maxChars?: string;
   limit?: string;
+  approve?: string;
+  approveFlag: boolean;
+  reject?: string;
+  reason?: string;
 };
 
 type StatusResult = {
@@ -88,12 +102,18 @@ type ApplyPatchCliResult = ReturnType<typeof applyPatchPlan> & {
   validation?: ReturnType<typeof validateVault>;
 };
 
-function main(argv: string[]): void {
+async function main(argv: string[]): Promise<void> {
   const args = parseArgs(argv);
 
   try {
     if (!args.command || args.command === "help" || args.command === "--help") {
       printHelp();
+      process.exit(0);
+    }
+
+    if (args.command === "agent") {
+      const result = await runAgent(args);
+      writeOutput(args.json, result, formatAgentResult(result));
       process.exit(0);
     }
 
@@ -201,6 +221,7 @@ function main(argv: string[]): void {
         error instanceof SourceContractError ? error : null;
       const mergePlanError = error instanceof MergePlanError ? error : null;
       const searchError = error instanceof SearchError ? error : null;
+      const harnessError = error instanceof HarnessError ? error : null;
       console.log(
         JSON.stringify(
           {
@@ -210,9 +231,13 @@ function main(argv: string[]): void {
               gitDiffError?.code ??
               sourceContractError?.code ??
               mergePlanError?.code ??
-              searchError?.code,
-            message,
-            error: message,
+              searchError?.code ??
+              harnessError?.code,
+            category: harnessError?.category,
+            step: harnessError?.step,
+            retryable: harnessError?.retryable,
+            message: harnessError?.safeMessage ?? message,
+            error: harnessError?.safeMessage ?? message,
             path: patchError?.path,
             operationIndex: patchError?.operationIndex,
           },
@@ -241,6 +266,9 @@ function main(argv: string[]): void {
     if (error instanceof SearchError) {
       process.exit(error.exitCode);
     }
+    if (error instanceof HarnessError) {
+      process.exit(error.category === "tool_input_invalid" ? 2 : 1);
+    }
     process.exit(2);
   }
 }
@@ -256,6 +284,9 @@ function parseArgs(argv: string[]): ParsedArgs {
     "--language",
     "--max-chars",
     "--limit",
+    "--approve",
+    "--reject",
+    "--reason",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -285,7 +316,8 @@ function parseArgs(argv: string[]): ParsedArgs {
 
   return {
     command: positional[0],
-    path: positional[1],
+    subcommand: positional[0] === "agent" ? positional[1] : undefined,
+    path: positional[0] === "agent" ? positional[2] : positional[1],
     json: flags.has("--json"),
     force: flags.has("--force"),
     git: flags.has("--git"),
@@ -298,7 +330,90 @@ function parseArgs(argv: string[]): ParsedArgs {
     language: getStringFlag(flags, "--language"),
     maxChars: getStringFlag(flags, "--max-chars"),
     limit: getStringFlag(flags, "--limit"),
+    approve: getStringFlag(flags, "--approve"),
+    approveFlag: flags.get("--approve") === true,
+    reject: getStringFlag(flags, "--reject"),
+    reason: getStringFlag(flags, "--reason"),
   };
+}
+
+async function runAgent(args: ParsedArgs): Promise<AgentCommandResult> {
+  if (!args.subcommand) {
+    throw new CliError("pkwiki agent 需要子命令", 2);
+  }
+  if (args.subcommand === "status") {
+    if (!args.path) {
+      throw new CliError("pkwiki agent status 需要 Run ID", 2);
+    }
+    return new AgentHarness(process.cwd(), new FakeRuntimeAdapter([])).status(
+      args.path,
+    );
+  }
+
+  loadLocalEnvFile();
+  const config = loadModelConfig();
+  const harness = new AgentHarness(
+    process.cwd(),
+    new PiRuntimeAdapter(config),
+    summarizeModelConfig(config),
+  );
+
+  if (args.subcommand === "plan-ingest") {
+    if (!args.path) {
+      throw new CliError("pkwiki agent plan-ingest 需要 Source ID", 2);
+    }
+    return harness.planIngest(args.path);
+  }
+  if (args.subcommand === "merge") {
+    if (!args.path) {
+      throw new CliError("pkwiki agent merge 需要 Run ID", 2);
+    }
+    return harness.merge({
+      runId: args.path,
+      ...(args.approve
+        ? { approve: parseApproval(args.approve, "--approve") }
+        : {}),
+      ...(args.reject
+        ? { reject: parseApproval(args.reject, "--reject") }
+        : {}),
+      ...(args.reason ? { reason: args.reason } : {}),
+    });
+  }
+  if (args.subcommand === "query") {
+    if (!args.path) {
+      throw new CliError("pkwiki agent query 需要问题", 2);
+    }
+    return harness.query(args.path);
+  }
+  if (args.subcommand === "file-back") {
+    if (!args.path) {
+      throw new CliError("pkwiki agent file-back 需要 Run ID", 2);
+    }
+    return harness.fileBack({
+      runId: args.path,
+      ...(args.domain ? { domain: args.domain } : {}),
+      ...(args.privacy ? { privacy: args.privacy } : {}),
+      ...(args.approveFlag ? { approve: true } : {}),
+    });
+  }
+  throw new CliError(`未知 agent 子命令：${args.subcommand}`, 2);
+}
+
+function parseApproval(
+  value: string,
+  flag: string,
+): "merge-plan" | "patch-apply" {
+  if (value !== "merge-plan" && value !== "patch-apply") {
+    throw new CliError(`${flag} 必须是 merge-plan 或 patch-apply`, 2);
+  }
+  return value;
+}
+
+function loadLocalEnvFile(): void {
+  const path = resolve(process.env.PKWIKI_ENV_FILE ?? ".env.local");
+  if (existsSync(path)) {
+    process.loadEnvFile(path);
+  }
 }
 
 function runInit(args: ParsedArgs): {
@@ -771,8 +886,28 @@ function printHelp(): void {
       "  pkwiki index [path] [--json]",
       "  pkwiki apply-patch <plan> [--dry-run] [--json]",
       "  pkwiki diff [path] [--name-only] [--json]",
+      "  pkwiki agent plan-ingest <source-id> [--json]",
+      "  pkwiki agent merge <run-id> [--approve merge-plan|patch-apply] [--reject merge-plan|patch-apply --reason <text>] [--json]",
+      "  pkwiki agent query <question> [--json]",
+      "  pkwiki agent file-back <query-or-file-back-run-id> [--domain <domain>] [--privacy <privacy>] [--approve] [--json]",
+      "  pkwiki agent status <run-id> [--json]",
     ].join("\n"),
   );
+}
+
+function formatAgentResult(result: AgentCommandResult): string {
+  const lines = [
+    `Run: ${result.runId}`,
+    `Workflow: ${result.workflow}`,
+    `Status: ${result.status}`,
+  ];
+  if (result.approvalRequired) {
+    lines.push(`需要审批: ${result.approvalRequired}`);
+  }
+  if (result.nextCommand) {
+    lines.push(`下一步: ${result.nextCommand}`);
+  }
+  return lines.join("\n");
 }
 
 function getStringFlag(
@@ -793,4 +928,4 @@ class CliError extends Error {
   }
 }
 
-main(process.argv.slice(2));
+void main(process.argv.slice(2));

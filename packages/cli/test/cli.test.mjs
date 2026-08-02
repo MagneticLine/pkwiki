@@ -46,6 +46,49 @@ test("init/status/validate 支持 JSON 输出", () => {
   assert.deepEqual(validate.errors, []);
 });
 
+test("agent status 使用嵌套命令且不要求模型配置", () => {
+  const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-agent-status-"));
+  const vault = join(parent, "vault");
+  run(["init", vault, "--json"]);
+  const runId = "run:cli-status";
+  const runDirectory = join(vault, ".pkwiki/runs/run-cli-status");
+  mkdirSync(runDirectory, { recursive: true });
+  writeFileSync(
+    join(runDirectory, "run.json"),
+    `${JSON.stringify(
+      {
+        version: "pkwiki.agent-run/0.1",
+        runId,
+        workflow: "query",
+        status: "completed",
+        createdAt: "2026-07-28T00:00:00.000Z",
+        updatedAt: "2026-07-28T00:00:00.000Z",
+        currentStep: "completed",
+        sourceIds: [],
+        query: "测试问题",
+        runtime: { adapter: "fake" },
+        retryCount: 0,
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+        },
+        artifacts: {},
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const result = JSON.parse(run(["agent", "status", runId, "--json"], vault));
+  assert.equal(result.runId, runId);
+  assert.equal(result.workflow, "query");
+  assert.equal(result.status, "completed");
+});
+
 test("ingest 支持 JSON 输出", () => {
   const parent = mkdtempSync(join(tmpdir(), "pkwiki-cli-ingest-"));
   const vault = join(parent, "vault");

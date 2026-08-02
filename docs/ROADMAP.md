@@ -131,9 +131,9 @@ Feature Spec：`0009-search-context-pack`
 
 目标：提供一个配置模型 API 后即可运行的 Wiki Agent 应用，而不把确定性 core 绑定到单一 Runtime。
 
-计划 Feature Spec：从 `0010-agent-harness-mvp` 开始拆分。
+Feature Spec：`0010-agent-harness-mvp`，后续按独立实现批次继续拆分。
 
-状态：下一阶段，尚未开始实现。
+状态：Spec 已建立，进入 Harness Foundation 开发准备。
 
 范围：
 
