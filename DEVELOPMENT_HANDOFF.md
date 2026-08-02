@@ -295,13 +295,19 @@ ssh -T git@github-personal
 
 ## 11. 换机前不可遗漏的非 Git 内容
 
-以下内容不会随公开仓库 push，删除旧机器前必须单独确认：
+根目录中的开发计划、项目 README、历史聊天、素材压缩包和 Google Knowledge Catalog 源码快照已于 2026-08-02 归档到私有 Vault：
+
+```text
+repository: MagneticLine/my-pkm-vault
+branch: main
+commit: dcf7a7b
+path: archive/llm-wiki-root-2026-08-02/
+```
+
+以下内容不会随两个仓库 push，删除旧机器前仍必须单独确认：
 
 - `pkwiki/.env.local` 中的模型 API Key 和内部 Provider 配置。
 - 个人 GitHub SSH 私钥和 `~/.ssh/config` 中的 Host alias。
-- `my-pkm-vault` 私有仓库是否已完整 push。
-- `references/` 中未上传的聊天记录、Google OKF 仓库和其他参考资料。
-- 根目录 `DEVELOPMENT_PLAN.md` 如果不属于任何 Git 仓库，需要单独备份。
 - Codex 自定义 skills、memory 或其他仅位于旧机器用户目录的资料。
 
 不要删除旧机器文件，直到新机器能够 clone 两个仓库、安装依赖、读取私有 Vault，并确认秘密配置已安全恢复。
