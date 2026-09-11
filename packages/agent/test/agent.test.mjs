@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
 import { ingestSource } from "@pkwiki/core";
 import {
@@ -16,7 +17,9 @@ import {
   summarizeModelConfig,
 } from "../dist/index.js";
 
-const CLI_PATH = new URL("../../cli/dist/index.js", import.meta.url).pathname;
+const CLI_PATH = fileURLToPath(
+  new URL("../../cli/dist/index.js", import.meta.url),
+);
 
 test("GPT-5.6 Luna 使用 Pi 官方容量且配置摘要不包含密钥", () => {
   const config = loadModelConfig({

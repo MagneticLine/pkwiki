@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+# Preserve source bytes for checksum-sensitive fixtures.
+mock-sources/** -text
+templates/default-vault/raw/** -text

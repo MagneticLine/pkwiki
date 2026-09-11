@@ -2,7 +2,7 @@
 
 本文档是 `pkwiki` 产品阶段和 Feature Spec 顺序的唯一权威路线图。
 
-Feature Spec 编号表示开发批次，不等同于阶段编号。根目录 `DEVELOPMENT_PLAN.md` 只维护 workspace 边界、当前状态和协作规则，不再复制另一套详细阶段计划。
+Feature Spec 编号表示开发批次，不等同于阶段编号。协作规则见仓库内的 [CONTRIBUTING.md](../CONTRIBUTING.md)，开发本项目不依赖父目录文档。
 
 ## 阶段 0：Workspace 与产品基线
 
@@ -133,7 +133,7 @@ Feature Spec：`0009-search-context-pack`
 
 Feature Spec：`0010-agent-harness-mvp`，后续按独立实现批次继续拆分。
 
-状态：Spec 已建立，进入 Harness Foundation 开发准备。
+状态：Harness Core、ModelConfig、RunStore、FakeRuntime、Pi Adapter 以及 plan-ingest、merge、query、file-back 已实现并有 FakeRuntime 测试。真实 provider 的超时、取消和进程退出仍需修复；模型配置摘要还需审查脱敏。阶段 5 尚未通过真实模型验收。历史实现细节见 [开发中继文档](../DEVELOPMENT_HANDOFF.md)。
 
 范围：
 

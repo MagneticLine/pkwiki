@@ -92,6 +92,11 @@ test("ingestSource 复制 raw、生成 extracted 并更新 manifest", () => {
   assert.equal(result.privacy, "private");
   assert.equal(result.language, "zh-CN");
   assert.equal(result.status, undefined);
+  assert.equal(result.rawPath, "raw/inbox/2026-07-01-input.md");
+  assert.equal(
+    result.extractedPath,
+    "extracted/sources/src-2026-07-01-input.md",
+  );
   assert.equal(existsSync(join(root, result.rawPath)), true);
   assert.equal(existsSync(join(root, result.extractedPath)), true);
 
@@ -240,6 +245,7 @@ test("chunkSource 生成稳定 chunk manifest 并支持重跑", () => {
   const manifest = readChunkManifest(root);
   assert.equal(Object.keys(manifest).length, first.chunkCount);
   for (const chunk of first.chunks) {
+    assert.equal(chunk.path.includes("\\"), false);
     assert.equal(existsSync(join(root, chunk.path)), true);
     assert.equal(chunk.charCount <= 500, true);
   }
@@ -284,6 +290,7 @@ test("registerExtraction 登记 artifact、生成视图并推进状态", () => {
   const result = registerExtraction(root, artifactPath);
   assert.equal(result.processingStatus, "extracted");
   assert.equal(result.itemCount, 1);
+  assert.equal(result.artifactPath.includes("\\"), false);
   assert.equal(existsSync(join(root, result.artifactPath)), true);
   const view = readFileSync(join(root, result.extractedPath), "utf8");
   assert.match(view, /processing_status: extracted/);

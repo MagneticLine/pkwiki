@@ -10,7 +10,15 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, extname, isAbsolute, join, parse, resolve } from "node:path";
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  parse,
+  posix,
+  resolve,
+} from "node:path";
 
 export const PKWIKI_PROFILE = "pkwiki/0.1";
 export const OKF_VERSION = "0.1";
@@ -396,10 +404,10 @@ export function ingestSource(
   const sourceId = createUniqueSourceId(manifest, date, slug);
   const rawPath = createUniqueRawPath(
     vault.root,
-    join("raw", "inbox"),
+    posix.join("raw", "inbox"),
     `${date}-${slug}${extname(absoluteInputPath)}`,
   );
-  const extractedPath = join(
+  const extractedPath = posix.join(
     "extracted",
     "sources",
     `${sourceIdToFileName(sourceId)}.md`,
@@ -581,7 +589,7 @@ export function chunkSource(
   const chunks = splitTextIntoChunks(text, maxChars).map((chunk, chunkIndex) => {
     const index = chunkIndex + 1;
     const chunkId = createChunkId(sourceId, index);
-    const relativePath = join(
+    const relativePath = posix.join(
       "extracted",
       "chunks",
       sourceIdToFileName(sourceId),
@@ -758,7 +766,7 @@ export function registerExtraction(
   validateExtractionEvidence(vault.root, artifact, chunkManifest);
 
   const sourceFileName = sourceIdToFileName(artifact.sourceId);
-  const artifactPath = join("extracted", "data", `${sourceFileName}.json`);
+  const artifactPath = posix.join("extracted", "data", `${sourceFileName}.json`);
   const extractedPath = source.extractedPath;
   const updatedSource: SourceManifestEntry = {
     ...source,
@@ -927,7 +935,7 @@ function replaceSourceChunks(
   sourceId: string,
   chunks: Array<{ entry: ChunkManifestEntry; text: string }>,
 ): void {
-  const targetRelativeDirectory = join(
+  const targetRelativeDirectory = posix.join(
     "extracted",
     "chunks",
     sourceIdToFileName(sourceId),
@@ -1188,11 +1196,14 @@ function createUniqueRawPath(
   fileName: string,
 ): string {
   const parsed = parse(fileName);
-  let candidate = join(relativeDirectory, fileName);
+  let candidate = posix.join(relativeDirectory, fileName);
   let index = 2;
 
   while (existsSync(join(vaultRoot, candidate))) {
-    candidate = join(relativeDirectory, `${parsed.name}-${index}${parsed.ext}`);
+    candidate = posix.join(
+      relativeDirectory,
+      `${parsed.name}-${index}${parsed.ext}`,
+    );
     index += 1;
   }
 

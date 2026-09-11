@@ -8,6 +8,8 @@ Wiki 层以 OKF v0.1 作为外部兼容目标，并使用更严格的 `pkwiki/0.
 
 ## 文档地图
 
+首次参与开发请先看 [协作指南](CONTRIBUTING.md)。克隆本仓库即可开发，不需要私密 Vault 或父目录文档。
+
 建议按以下顺序阅读：
 
 1. [产品定义](docs/PRODUCT.md)：产品目的、用户、核心工作流和非目标。
@@ -95,16 +97,14 @@ pkwiki diff
 
 关键命令支持 Agent 使用的 `--json` 输出。
 
-阶段 4 Merge Foundations 已完成：Source Contract、稳定 chunk、Extraction Artifact、确定性候选定位、Context Pack、MergePlan、Coverage、最小 Run Record 和 finalize 已通过低敏端到端验收。下一阶段是 Agent Harness MVP；模型生成、Query 回答、File-back、MCP、HTTP、Web UI 和 Self-maintenance 尚未实现。
+阶段 4 Merge Foundations 已完成。阶段 5 已实现 Runtime-neutral Harness、Pi Adapter 和 plan-ingest、merge、query、file-back 工作流，并具备 FakeRuntime 回归测试；真实模型的超时与取消仍有阻塞，尚未完成阶段验收。MCP、HTTP、Web UI 和 Self-maintenance 尚未实现，MCP/Web 当前仅为占位包。
 
 ## 开发命令
 
 ```bash
-pnpm install
-pnpm build
-pnpm test
-pnpm lint
-pnpm -r lint
+corepack pnpm@9.0.0 install --frozen-lockfile --registry=https://registry.npmjs.org/
+corepack pnpm@9.0.0 test
+corepack pnpm@9.0.0 lint
 ```
 
-详细开发状态和下一阶段以 [路线图](docs/ROADMAP.md) 为准。
+使用 Node.js 22.20.0（见 `.node-version`）；`test` 会先构建所有包。工具链、示例 Vault 和分支规则见 [协作指南](CONTRIBUTING.md)。详细开发状态和下一阶段以 [路线图](docs/ROADMAP.md) 为准。
